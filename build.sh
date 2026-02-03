@@ -15,7 +15,7 @@ if [ $# -eq 0 ]; then
 
     echo -e "${COLOR}Warning: by default the build will run in ${BOLD}RELEASE${BOLD_OFF} mode.${COLOR_OFF}"
 fi
-
+    
 while [ $# -gt 0 ]; do
     case "$1" in
         --release)

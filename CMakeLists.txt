@@ -18,7 +18,7 @@ add_link_options(
 )
 
 set(SOURCE_FILES 
-	src/main.cpp
+	src/bitonic_sort_cpu.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
