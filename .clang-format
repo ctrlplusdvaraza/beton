@@ -1,0 +1,13 @@
+---
+BasedOnStyle: Microsoft
+IndentCaseBlocks: true
+IndentCaseLabels: true
+IndentWidth: 4
+TabWidth: 4
+UseTab: false
+PointerAlignment: Left
+MaxEmptyLinesToKeep: 2
+BreakTemplateDeclarations: Yes
+ColumnLimit: 100
+AllowShortFunctionsOnASingleLine: All
+
