@@ -8,6 +8,7 @@ project(beton LANGUAGES CXX)
 
 include_directories(
             ${CMAKE_SOURCE_DIR}/
+            ${CMAKE_SOURCE_DIR}/src
 )
 
 add_compile_options(
@@ -18,7 +19,7 @@ add_link_options(
 )
 
 set(SOURCE_FILES 
-	src/main.cpp
+    src/main.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
