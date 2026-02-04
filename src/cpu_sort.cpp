@@ -1,3 +1,7 @@
+#include <algorithm>
+#include <cstddef>
+#include <vector>
+
 #include "interface.hpp"
 
 void Bitonic::cpu_comp_and_swap(iter first, iter second, Direction direction)
@@ -11,16 +15,16 @@ void Bitonic::cpu_comp_and_swap(iter first, iter second, Direction direction)
 
 void Bitonic::cpu_merge(iter begin, iter end, Direction direction)
 {
-    ptrdiff_t size = end - begin;
+    std::ptrdiff_t size = end - begin;
 
     if (size <= 1)
     {
         return;
     }
 
-    ptrdiff_t half = size / 2;
+    std::ptrdiff_t half = size / 2;
 
-    for (ptrdiff_t i = 0; i < half; ++i)
+    for (std::ptrdiff_t i = 0; i < half; ++i)
     {
         Bitonic::cpu_comp_and_swap(begin + i, begin + half + i, direction);
     }
@@ -31,14 +35,14 @@ void Bitonic::cpu_merge(iter begin, iter end, Direction direction)
 
 void Bitonic::cpu_sort(iter begin, iter end, Direction direction)
 {
-    ptrdiff_t size = end - begin;
+    std::ptrdiff_t size = end - begin;
 
     if (size <= 1)
     {
         return;
     }
 
-    ptrdiff_t half = size / 2;
+    std::ptrdiff_t half = size / 2;
 
     Bitonic::cpu_sort(begin, begin + half, Direction::Ascending);
     Bitonic::cpu_sort(begin + half, end, Direction::Descending);

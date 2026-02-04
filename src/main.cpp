@@ -1,7 +1,7 @@
-#include <CL/cl.h>
+#include <CL/opencl.hpp>    
 #include <iostream>
+#include <vector>
 
-#include <iostream>
 #include "interface.hpp"
 
 bool IsOpenClAvailable()

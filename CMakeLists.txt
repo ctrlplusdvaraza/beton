@@ -19,7 +19,7 @@ add_link_options(
 )
 
 set(SOURCE_FILES 
-	src/bitonic_sort_cpu.cpp
+	src/cpu_sort.cpp
     src/main.cpp
 )
 
