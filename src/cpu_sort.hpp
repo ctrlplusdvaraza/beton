@@ -38,7 +38,6 @@ template <typename T>
 void Bitonic<T>::cpu_sort_recursive(iter begin, iter end, Direction direction)
 {
     std::ptrdiff_t size = end - begin;
-
     if (size <= 1) { return; }
 
     std::ptrdiff_t half = size / 2;
@@ -55,19 +54,33 @@ void Bitonic<T>::cpu_sort_iterative(iter begin, iter end, Direction direction)
     std::ptrdiff_t size = end - begin;
     if (size <= 1) { return; }
 
-    for (int block_size = 2; block_size <= size; block_size <<= 1)
+    for (int block_size = 2; block_size <= size; block_size *= 2)
     {
-        for (int dist = block_size >> 1; dist > 0; dist >>= 1)
+        for (int dist = block_size / 2; dist > 0; dist /= 2)
         {
-            for (int pos = 0; pos < size; pos++)
+            for (int pos = 0; pos < size; ++pos)
             {
-                // partner is position of element at distance=dist in current block
                 int partner = pos ^ dist;
                 if (partner > pos)
                 {
-                    Bitonic::cpu_comp_and_swap(begin + pos, begin + partner, direction);
+                    bool is_first_half = (pos & block_size) == 0;
+                    Direction local_direction = is_first_half ? direction : !direction;
+
+                    Bitonic::cpu_comp_and_swap(begin + pos, begin + partner, local_direction);
                 }
             }
         }
+
+        // debug output start
+        std::cout << "[ ";
+        for (auto elem = begin; elem < end; ++elem) 
+        { 
+            if ((elem - begin) % block_size == 0 && elem != begin) {
+                std::cout << "] [ ";
+            }
+            std::cout << *elem << " "; 
+        }
+        std::cout << " ]" << std::endl;
+        // debug output end
     }
 }

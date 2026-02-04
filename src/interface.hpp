@@ -8,6 +8,13 @@ enum class Direction
     Ascending = 1
 };
 
+Direction operator!(Direction dir)
+{
+    if (dir == Direction::Ascending) { return Direction::Descending; }
+    
+    return Direction::Ascending;
+}
+
 template <typename T>
 class Bitonic
 {
