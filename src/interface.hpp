@@ -1,16 +1,18 @@
+#pragma once
+
 #include <vector>
 
+enum class Direction
+{
+    Descending = 0,
+    Ascending = 1
+};
+
+template <typename T>
 class Bitonic
 {
-  public:
-    enum class Direction
-    {
-        Descending = 0,
-        Ascending = 1
-    };
-
   private:
-    using iter = std::vector<int>::iterator;
+    using iter = typename std::vector<T>::iterator;
 
   public:
     static void cpu_sort(iter begin, iter end, Direction direction);

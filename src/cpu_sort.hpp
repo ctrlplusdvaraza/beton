@@ -1,10 +1,13 @@
+#pragma once
+
 #include <algorithm>
 #include <cstddef>
 #include <vector>
 
 #include "interface.hpp"
 
-void Bitonic::cpu_comp_and_swap(iter first, iter second, Direction direction)
+template <typename T>
+void Bitonic<T>::cpu_comp_and_swap(iter first, iter second, Direction direction)
 {
     if ((direction == Direction::Ascending && *first > *second) ||
         (direction == Direction::Descending && *first < *second))
@@ -13,7 +16,8 @@ void Bitonic::cpu_comp_and_swap(iter first, iter second, Direction direction)
     }
 }
 
-void Bitonic::cpu_merge(iter begin, iter end, Direction direction)
+template <typename T>
+void Bitonic<T>::cpu_merge(iter begin, iter end, Direction direction)
 {
     std::ptrdiff_t size = end - begin;
 
@@ -33,7 +37,8 @@ void Bitonic::cpu_merge(iter begin, iter end, Direction direction)
     Bitonic::cpu_merge(begin + half, end, direction);
 }
 
-void Bitonic::cpu_sort(iter begin, iter end, Direction direction)
+template <typename T>
+void Bitonic<T>::cpu_sort(iter begin, iter end, Direction direction)
 {
     std::ptrdiff_t size = end - begin;
 

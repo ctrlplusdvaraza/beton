@@ -19,7 +19,6 @@ add_link_options(
 )
 
 set(SOURCE_FILES 
-	src/cpu_sort.cpp
     src/main.cpp
 )
 
