@@ -70,15 +70,5 @@ void Bitonic<T>::cpu_sort_iterative(iter begin, iter end, Direction direction)
                 }
             }
         }
-
-        // debug output start
-        std::cout << "[ ";
-        for (auto elem = begin; elem < end; ++elem)
-        {
-            if ((elem - begin) % block_size == 0 && elem != begin) { std::cout << "] [ "; }
-            std::cout << *elem << " ";
-        }
-        std::cout << " ]" << std::endl;
-        // debug output end
     }
 }

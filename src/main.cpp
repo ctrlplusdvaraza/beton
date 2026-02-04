@@ -25,6 +25,7 @@ int main()
     std::cout << std::endl;
 
     Bitonic<int>::cpu_sort_iterative(arr1.begin(), arr1.end(), Direction::Ascending);
+    for (auto& elem : arr1) { std::cout << elem << " "; }
     std::cout << std::endl;
 
     std::cout << "Double array: ";
@@ -33,6 +34,7 @@ int main()
     std::cout << std::endl;
 
     Bitonic<double>::cpu_sort_iterative(arr2.begin(), arr2.end(), Direction::Descending);
+    for (auto& elem : arr2) { std::cout << elem << " "; }
     std::cout << std::endl;
 
     return 0;
