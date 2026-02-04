@@ -1,15 +1,6 @@
-#include <iostream>
-#include <vector>
+#include "interface.hpp"
 
-enum class Direction
-{
-    Descending = 0,
-    Ascending = 1
-};
-
-using iter = std::vector<int>::iterator;
-
-void CompAndSwap(iter first, iter second, Direction direction)
+void Bitonic::cpu_comp_and_swap(iter first, iter second, Direction direction)
 {
     if ((direction == Direction::Ascending && *first > *second) ||
         (direction == Direction::Descending && *first < *second))
@@ -18,7 +9,7 @@ void CompAndSwap(iter first, iter second, Direction direction)
     }
 }
 
-void BitonicMerge(iter begin, iter end, Direction direction)
+void Bitonic::cpu_merge(iter begin, iter end, Direction direction)
 {
     ptrdiff_t size = end - begin;
 
@@ -31,14 +22,14 @@ void BitonicMerge(iter begin, iter end, Direction direction)
 
     for (ptrdiff_t i = 0; i < half; ++i)
     {
-        CompAndSwap(begin + i, begin + half + i, direction);
+        Bitonic::cpu_comp_and_swap(begin + i, begin + half + i, direction);
     }
 
-    BitonicMerge(begin, begin + half, direction);
-    BitonicMerge(begin + half, end, direction);
+    Bitonic::cpu_merge(begin, begin + half, direction);
+    Bitonic::cpu_merge(begin + half, end, direction);
 }
 
-void BitonicSort(iter begin, iter end, Direction direction)
+void Bitonic::cpu_sort(iter begin, iter end, Direction direction)
 {
     ptrdiff_t size = end - begin;
 
@@ -49,22 +40,8 @@ void BitonicSort(iter begin, iter end, Direction direction)
 
     ptrdiff_t half = size / 2;
 
-    BitonicSort(begin, begin + half, Direction::Ascending);
-    BitonicSort(begin + half, end, Direction::Descending);
+    Bitonic::cpu_sort(begin, begin + half, Direction::Ascending);
+    Bitonic::cpu_sort(begin + half, end, Direction::Descending);
 
-    BitonicMerge(begin, end, direction);
-}
-
-
-int main()
-{
-    std::vector<int> arr = {1, 2, 65, 4534, 134, 23, 234, 8};
-
-    BitonicSort(arr.begin(), arr.end(), Direction::Ascending);
-
-    for (std::size_t i = 0; i < arr.size(); ++i)
-    {
-        std::cout << arr[i] << " ";
-    }
-    std::cout << std::endl;
+    Bitonic::cpu_merge(begin, end, direction);
 }
