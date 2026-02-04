@@ -1,13 +1,18 @@
----
-BasedOnStyle: Microsoft
+Language: Cpp
+Standard: Latest
 IndentCaseBlocks: true
 IndentCaseLabels: true
 IndentWidth: 4
 TabWidth: 4
-UseTab: false
+UseTab: Never
 PointerAlignment: Left
 MaxEmptyLinesToKeep: 2
 BreakTemplateDeclarations: Yes
 ColumnLimit: 100
-AllowShortFunctionsOnASingleLine: All
+AllowShortFunctionsOnASingleLine: Inline
 
+AllowShortBlocksOnASingleLine: Always
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+BreakBeforeBraces: Allman
+
+AllowShortLoopsOnASingleLine: true
