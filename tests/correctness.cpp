@@ -18,13 +18,13 @@ std::ostream& operator<<(std::ostream& ostream, const std::vector<T>& vector)
     return ostream;
 }
 
-void RandFill(std::vector<int>& vector)
+void RandFill(std::vector<int>& vector, int modulo)
 {
     srand(time(nullptr));
 
     for (auto& elem : vector)
     {
-        elem = rand() % 10000;
+        elem = rand() % modulo;
     }
 }
 
@@ -110,7 +110,7 @@ void TestBitonicSortsCorrectness(std::size_t start_size, std::size_t end_size)
 {
     std::cout << "Running tests to verify sorting correctness..." << std::endl;
 
-    TestSortCorrectness(Bitonic<int>::cpu_sort_recursive, start_size, end_size, "CPU recursive");
     TestSortCorrectness(Bitonic<int>::cpu_sort_iterative, start_size, end_size, "CPU iterative");
+    TestSortCorrectness(Bitonic<int>::cpu_sort_recursive, start_size, end_size, "CPU recursive");
     // TestSortCorrectness(Bitonic<int>::gpu_sort, start_size, end_size, "GPU");
 }
