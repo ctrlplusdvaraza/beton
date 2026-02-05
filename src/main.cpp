@@ -29,7 +29,8 @@ int main()
     std::cout << std::endl;
 
     std::cout << "Double array: ";
-    std::vector<double> arr2 = {2.5, 1.1, 4.2, 3.4, 6.3, 5.7, 8.9, 7.3, 20.2, 18.5, 19.7, 21.1, 23.2, 22.7, 34.3, 25.2};
+    std::vector<double> arr2 = {2.5,  1.1,  4.2,  3.4,  6.3,  5.7,  8.9,  7.3,
+                                20.2, 18.5, 19.7, 21.1, 23.2, 22.7, 34.3, 25.2};
     for (auto& elem : arr2) { std::cout << elem << " "; }
     std::cout << std::endl;
 
@@ -39,4 +40,3 @@ int main()
 
     return 0;
 }
-

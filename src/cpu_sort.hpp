@@ -20,7 +20,6 @@ template <typename T>
 void Bitonic<T>::cpu_merge(iter begin, iter end, Direction direction)
 {
     std::ptrdiff_t size = end - begin;
-
     if (size <= 1) { return; }
 
     std::ptrdiff_t half = size / 2;
