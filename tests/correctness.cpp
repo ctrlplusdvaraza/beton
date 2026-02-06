@@ -112,5 +112,5 @@ void TestBitonicSortsCorrectness(std::size_t start_size, std::size_t end_size)
 
     TestSortCorrectness(Bitonic<int>::cpu_sort_iterative, start_size, end_size, "CPU iterative");
     TestSortCorrectness(Bitonic<int>::cpu_sort_recursive, start_size, end_size, "CPU recursive");
-    // TestSortCorrectness(Bitonic<int>::gpu_sort, start_size, end_size, "GPU");
+    TestSortCorrectness(Bitonic<int>::gpu_sort, start_size, end_size, "GPU");
 }

@@ -5,12 +5,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(beton LANGUAGES CXX)
 
+find_package(OpenCL REQUIRED)
+
 add_subdirectory(tests)
 
 include_directories(
             ${CMAKE_SOURCE_DIR}/
             ${CMAKE_SOURCE_DIR}/src
 )
+
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 add_compile_options(
@@ -34,18 +37,25 @@ add_custom_command(
   VERBATIM
 )
 
+add_custom_target(bitonic_kernel DEPENDS "${BITONIC_KERNEL_OUT}")
+
 set(SOURCE_FILES 
     src/main.cpp
 )
 
 add_executable(${PROJECT_NAME} 
     ${SOURCE_FILES}
-    ${BITONIC_KERNEL_OUT})
+    ${BITONIC_KERNEL_OUT}
+)
 
-find_package(OpenCL REQUIRED)
+add_dependencies(${PROJECT_NAME} bitonic_kernel)
+
 target_link_libraries(${PROJECT_NAME} PRIVATE OpenCL::OpenCL)
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE CL_HPP_TARGET_OPENCL_VERSION=300 CL_TARGET_OPENCL_VERSION=300)
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    CL_HPP_TARGET_OPENCL_VERSION=300
+    CL_TARGET_OPENCL_VERSION=300
+)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
             ${CMAKE_SOURCE_DIR}/
