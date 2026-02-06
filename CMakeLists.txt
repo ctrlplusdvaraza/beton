@@ -5,6 +5,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(beton LANGUAGES CXX)
 
+add_subdirectory(tests)
+
+include_directories(
+            ${CMAKE_SOURCE_DIR}/
+            ${CMAKE_SOURCE_DIR}/src
+)
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 add_compile_options(

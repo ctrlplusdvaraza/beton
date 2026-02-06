@@ -9,10 +9,11 @@ PointerAlignment: Left
 MaxEmptyLinesToKeep: 2
 BreakTemplateDeclarations: Yes
 ColumnLimit: 100
-AllowShortFunctionsOnASingleLine: Inline
-
-AllowShortBlocksOnASingleLine: Always
-AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 BreakBeforeBraces: Allman
 
-AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Always
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortFunctionsOnASingleLine: InlineOnly
+
+
+
