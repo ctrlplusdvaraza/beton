@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <vector>
 
 #include "interface.hpp"
 

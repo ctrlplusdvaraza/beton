@@ -1,0 +1,105 @@
+#pragma once
+
+#include "bitonic_cl.hpp"
+#include "bitonic_sort.hpp"
+#include "interface.hpp"
+#include <CL/opencl.hpp>
+#include <iostream>
+#include <type_traits>
+
+const std::string kOpenClBuildArgs = "-cl-std=CL3.0";
+
+inline cl::Program bitonic_sort_program(kBitonicClSrc);
+
+static void compile_kernels_if_needed()
+{
+    static bool are_kernels_compiled = false;
+
+    try
+    {
+        bitonic_sort_program.build(kOpenClBuildArgs);
+        are_kernels_compiled = true;
+    }
+    catch (...)
+    {
+        cl_int err = CL_SUCCESS;
+        auto build_info = bitonic_sort_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(&err);
+
+        for (auto& kv : build_info) { std::cerr << kv.second << std::endl; }
+        throw;
+    }
+}
+
+template <typename T>
+void Bitonic<T>::gpu_sort(iter begin, iter end, Direction direction)
+{
+    compile_kernels_if_needed();
+
+    std::vector<float> array(begin, end);
+
+    auto bitonic_sort_kernel =
+        cl::KernelFunctor<cl::Buffer, cl::LocalSpaceArg>(bitonic_sort_program, "bsort_init");
+
+    auto bitonic_stage_0_kernel = cl::KernelFunctor<cl::Buffer, cl::LocalSpaceArg, cl_uint>(
+        bitonic_sort_program, "bsort_stage_0");
+
+    auto bitonic_stage_n_kernel =
+        cl::KernelFunctor<cl::Buffer, cl::LocalSpaceArg, cl_uint, cl_uint>(bitonic_sort_program, "bsort_stage_n");
+
+    auto bitonic_merge_kernel = cl::KernelFunctor<cl::Buffer, cl::LocalSpaceArg, cl_uint, cl_uint>(
+        bitonic_sort_program, "bsort_merge");
+
+    auto bitonic_merge_last_kernel = cl::KernelFunctor<cl::Buffer, cl::LocalSpaceArg, cl_uint>(
+        bitonic_sort_program, "bsort_merge_last");
+
+    auto ctx = cl::Context::getDefault();
+    auto command_queue = cl::CommandQueue(ctx);
+    auto device = cl::Device::getDefault();
+    auto max_workgroup_sz = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+
+    cl::Buffer buf(ctx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, array.size() * sizeof(float),
+                   array.data());
+
+    std::size_t local_sz = max_workgroup_sz;
+    std::size_t global_sz = array.size() / 8;
+    std::size_t ldata_sz = 2 * sizeof(cl_float4) * local_sz;
+
+    auto ev = bitonic_sort_kernel(
+        cl::EnqueueArgs(command_queue, cl::NDRange(global_sz), cl::NDRange(local_sz)), buf,
+        cl::Local(ldata_sz));
+
+    ev.wait();
+
+    std::size_t num_stages = global_sz / local_sz;
+
+    for (std::size_t high_stage = 2; high_stage < num_stages; high_stage *= 2)
+    {
+        for (std::size_t stage = high_stage; stage > 1; stage /= 2)
+        {
+            bitonic_stage_n_kernel(
+                cl::EnqueueArgs(command_queue, cl::NDRange(global_sz), cl::NDRange(local_sz)), buf,
+                cl::Local(ldata_sz), stage, high_stage);
+        }
+
+        bitonic_stage_0_kernel(
+            cl::EnqueueArgs(command_queue, cl::NDRange(global_sz), cl::NDRange(local_sz)), buf,
+            cl::Local(ldata_sz), high_stage);
+    }
+
+    for (std::size_t stage = num_stages; stage > 1; stage /= 2)
+    {
+        bitonic_merge_kernel(
+            cl::EnqueueArgs(command_queue, cl::NDRange(global_sz), cl::NDRange(local_sz)), buf,
+            cl::Local(ldata_sz), stage, 1 - static_cast<std::size_t>(direction));
+    }
+
+    bitonic_merge_last_kernel(
+        cl::EnqueueArgs(command_queue, cl::NDRange(global_sz), cl::NDRange(local_sz)), buf,
+        cl::Local(ldata_sz), 1 - static_cast<std::size_t>(direction));
+
+
+    command_queue.enqueueReadBuffer(buf, CL_TRUE, 0, array.size() * sizeof(float), array.data());
+    
+    // FIXME: get rid of this BS copy
+    std::copy(array.begin(), array.end(), begin); 
+}

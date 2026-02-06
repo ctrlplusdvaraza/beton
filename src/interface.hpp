@@ -2,7 +2,7 @@
 
 #include <vector>
 
-enum class Direction
+enum class Direction : std::size_t
 {
     Descending = 0,
     Ascending = 1
