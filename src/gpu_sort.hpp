@@ -90,12 +90,12 @@ void Bitonic<T>::gpu_sort(iter begin, iter end, Direction direction)
     {
         bitonic_merge_kernel(
             cl::EnqueueArgs(command_queue, cl::NDRange(global_sz), cl::NDRange(local_sz)), buf,
-            cl::Local(ldata_sz), stage, 1 - static_cast<std::size_t>(direction));
+            cl::Local(ldata_sz), stage, static_cast<int>(direction));
     }
 
     bitonic_merge_last_kernel(
         cl::EnqueueArgs(command_queue, cl::NDRange(global_sz), cl::NDRange(local_sz)), buf,
-        cl::Local(ldata_sz), 1 - static_cast<std::size_t>(direction));
+        cl::Local(ldata_sz), static_cast<int>(direction));
 
 
     command_queue.enqueueReadBuffer(buf, CL_TRUE, 0, array.size() * sizeof(float), array.data());

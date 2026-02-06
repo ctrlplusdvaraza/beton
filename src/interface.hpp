@@ -2,10 +2,10 @@
 
 #include <vector>
 
-enum class Direction : std::size_t
+enum class Direction : int
 {
-    Descending = 0,
-    Ascending = 1
+    Descending = -1,
+    Ascending = 0
 };
 
 inline Direction operator!(Direction dir)
