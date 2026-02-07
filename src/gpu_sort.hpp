@@ -25,7 +25,10 @@ static void compile_kernels_if_needed()
         cl_int err = CL_SUCCESS;
         auto build_info = bitonic_sort_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(&err);
 
-        for (auto& kv : build_info) { std::cerr << kv.second << std::endl; }
+        for (auto& kv : build_info)
+        {
+            std::cerr << kv.second << std::endl;
+        }
         throw;
     }
 }
@@ -35,8 +38,6 @@ void Bitonic<T>::gpu_sort(iter begin, iter end, Direction direction)
 {
     compile_kernels_if_needed();
 
-    std::vector<float> array(begin, end);
-
     auto bitonic_sort_kernel =
         cl::KernelFunctor<cl::Buffer, cl::LocalSpaceArg>(bitonic_sort_program, "bsort_init");
 
@@ -44,7 +45,8 @@ void Bitonic<T>::gpu_sort(iter begin, iter end, Direction direction)
         bitonic_sort_program, "bsort_stage_0");
 
     auto bitonic_stage_n_kernel =
-        cl::KernelFunctor<cl::Buffer, cl::LocalSpaceArg, cl_uint, cl_uint>(bitonic_sort_program, "bsort_stage_n");
+        cl::KernelFunctor<cl::Buffer, cl::LocalSpaceArg, cl_uint, cl_uint>(bitonic_sort_program,
+                                                                           "bsort_stage_n");
 
     auto bitonic_merge_kernel = cl::KernelFunctor<cl::Buffer, cl::LocalSpaceArg, cl_uint, cl_uint>(
         bitonic_sort_program, "bsort_merge");
@@ -57,11 +59,11 @@ void Bitonic<T>::gpu_sort(iter begin, iter end, Direction direction)
     auto device = cl::Device::getDefault();
     auto max_workgroup_sz = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
 
-    cl::Buffer buf(ctx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, array.size() * sizeof(float),
-                   array.data());
+    cl::Buffer buf(ctx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+                   std::distance(begin, end) * sizeof(float), &(*begin));
 
     std::size_t local_sz = max_workgroup_sz;
-    std::size_t global_sz = array.size() / 8;
+    std::size_t global_sz = (std::distance(begin, end)) / 8;
     std::size_t ldata_sz = 2 * sizeof(cl_float4) * local_sz;
 
     auto ev = bitonic_sort_kernel(
@@ -98,8 +100,6 @@ void Bitonic<T>::gpu_sort(iter begin, iter end, Direction direction)
         cl::Local(ldata_sz), static_cast<int>(direction));
 
 
-    command_queue.enqueueReadBuffer(buf, CL_TRUE, 0, array.size() * sizeof(float), array.data());
-    
-    // FIXME: get rid of this BS copy
-    std::copy(array.begin(), array.end(), begin); 
+    command_queue.enqueueReadBuffer(buf, CL_TRUE, 0, std::distance(begin, end) * sizeof(float),
+                                    &(*begin));
 }
