@@ -43,12 +43,6 @@ bool IsSorted(const std::vector<int>& vector, Direction direction)
 void TestSortCorrectness(SortFunc sort_func, std::size_t start_size, std::size_t end_size,
                          const std::string& name)
 {
-    if (start_size % 2 != 0 || end_size % 2 != 0)
-    {
-        std::cout << "Sizes should be a multiple of 2" << std::endl;
-        return;
-    }
-
     std::size_t total_tests = 0;
     std::size_t passed_tests = 0;
 
@@ -109,6 +103,12 @@ void TestSortCorrectness(SortFunc sort_func, std::size_t start_size, std::size_t
 void TestBitonicSortsCorrectness(std::size_t start_size, std::size_t end_size)
 {
     std::cout << "Running tests to verify sorting correctness..." << std::endl;
+
+    if (start_size % 2 != 0 || end_size % 2 != 0)
+    {
+        std::cout << "Sizes should be a multiple of 2" << std::endl;
+        return;
+    }
 
     TestSortCorrectness(Bitonic<int>::cpu_sort_iterative, start_size, end_size, "CPU iterative");
     TestSortCorrectness(Bitonic<int>::cpu_sort_recursive, start_size, end_size, "CPU recursive");
