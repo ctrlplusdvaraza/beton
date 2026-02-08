@@ -5,29 +5,6 @@
 
 #include "tests.hpp"
 
-template <typename T>
-std::ostream& operator<<(std::ostream& ostream, const std::vector<T>& vector)
-{
-    ostream << '[';
-    for (std::size_t i = 0; i < vector.size(); ++i)
-    {
-        if (i > 0) { ostream << ", "; }
-        ostream << vector[i];
-    }
-    ostream << ']';
-    return ostream;
-}
-
-void RandFill(std::vector<int>& vector, int modulo)
-{
-    srand(time(nullptr));
-
-    for (auto& elem : vector)
-    {
-        elem = rand() % modulo;
-    }
-}
-
 bool IsSorted(const std::vector<int>& vector, Direction direction)
 {
     if (direction == Direction::Descending)
@@ -40,7 +17,7 @@ bool IsSorted(const std::vector<int>& vector, Direction direction)
     }
 }
 
-void TestSortCorrectness(SortFunc sort_func, std::size_t start_size, std::size_t end_size,
+void TestSortCorrectness(SortFunction sort_func, std::size_t start_size, std::size_t end_size,
                          const std::string& name)
 {
     std::size_t total_tests = 0;
@@ -62,6 +39,7 @@ void TestSortCorrectness(SortFunc sort_func, std::size_t start_size, std::size_t
             {
                 std::cout << "FAILED TEST: " << name << " (size = " << size
                           << ", ASCENDING) NOT SORTED" << std::endl;
+                std::cout << "RESULT: " << arr_ascending << std::endl;
             }
             else
             {
@@ -80,6 +58,7 @@ void TestSortCorrectness(SortFunc sort_func, std::size_t start_size, std::size_t
             {
                 std::cout << "FAILED TEST: " << name << " (size = " << size
                           << ", DESCENDING) NOT SORTED" << std::endl;
+                std::cout << "RESULT: " << arr_descending << std::endl;
             }
             else
             {
@@ -100,17 +79,20 @@ void TestSortCorrectness(SortFunc sort_func, std::size_t start_size, std::size_t
     }
 }
 
-void TestBitonicSortsCorrectness(std::size_t start_size, std::size_t end_size)
+void TestBitonicSortsCorrectness(
+    std::size_t start_size, std::size_t end_size,
+    const std::vector<std::pair<std::string, SortFunction>>& sort_functions)
 {
     std::cout << "Running tests to verify sorting correctness..." << std::endl;
 
-    if (start_size % 2 != 0 || end_size % 2 != 0)
+    if (!IsPowerOfTwo(start_size) || !IsPowerOfTwo(end_size))
     {
-        std::cout << "Sizes should be a multiple of 2" << std::endl;
+        std::cout << "Sizes should be powers of 2" << std::endl;
         return;
     }
 
-    TestSortCorrectness(Bitonic<int>::cpu_sort_iterative, start_size, end_size, "CPU iterative");
-    TestSortCorrectness(Bitonic<int>::cpu_sort_recursive, start_size, end_size, "CPU recursive");
-    TestSortCorrectness(Bitonic<int>::gpu_sort, start_size, end_size, "GPU");
+    for (const auto& [name, sort_func] : sort_functions)
+    {
+        TestSortCorrectness(sort_func, start_size, end_size, name);
+    }
 }

@@ -28,9 +28,5 @@ class Bitonic
 
   private:
     static void cpu_merge(iter begin, iter end, Direction direction);
-    static void gpu_merge(iter begin, iter end, Direction direction);
-
     static void cpu_comp_and_swap(iter first, iter second, Direction direction);
-    static void cpu_comp_and_swap(iter first, iter second, bool direction);
-    static void gpu_comp_and_swap(iter first, iter second, Direction direction);
 };
