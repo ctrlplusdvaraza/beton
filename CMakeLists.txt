@@ -38,27 +38,3 @@ add_custom_command(
 )
 
 add_custom_target(bitonic_kernel DEPENDS "${BITONIC_KERNEL_OUT}")
-
-set(SOURCE_FILES 
-    src/main.cpp
-)
-
-add_executable(${PROJECT_NAME} 
-    ${SOURCE_FILES}
-    ${BITONIC_KERNEL_OUT}
-)
-
-add_dependencies(${PROJECT_NAME} bitonic_kernel)
-
-target_link_libraries(${PROJECT_NAME} PRIVATE OpenCL::OpenCL)
-
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-    CL_HPP_TARGET_OPENCL_VERSION=300
-    CL_TARGET_OPENCL_VERSION=300
-)
-
-target_include_directories(${PROJECT_NAME} PRIVATE
-            ${CMAKE_SOURCE_DIR}/
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_CURRENT_BINARY_DIR}/generated
-)
