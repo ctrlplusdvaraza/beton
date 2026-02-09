@@ -1,12 +1,16 @@
-#pragma once
-
 #include <algorithm>
 #include <cstddef>
 
 #include "interface.hpp"
 
-template <typename T>
-void Bitonic<T>::cpu_comp_and_swap(iter first, iter second, Direction direction)
+namespace Bitonic
+{
+
+namespace details
+{
+
+void cpu_comp_and_swap(std::vector<int>::iterator first, std::vector<int>::iterator second,
+                       Direction direction)
 {
     if ((direction == Direction::Ascending && *first > *second) ||
         (direction == Direction::Descending && *first < *second))
@@ -15,8 +19,8 @@ void Bitonic<T>::cpu_comp_and_swap(iter first, iter second, Direction direction)
     }
 }
 
-template <typename T>
-void Bitonic<T>::cpu_merge(iter begin, iter end, Direction direction)
+void cpu_merge(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+               Direction direction)
 {
     std::ptrdiff_t size = end - begin;
     if (size <= 1) { return; }
@@ -25,29 +29,31 @@ void Bitonic<T>::cpu_merge(iter begin, iter end, Direction direction)
 
     for (std::ptrdiff_t i = 0; i < half; ++i)
     {
-        Bitonic::cpu_comp_and_swap(begin + i, begin + half + i, direction);
+        cpu_comp_and_swap(begin + i, begin + half + i, direction);
     }
 
-    Bitonic::cpu_merge(begin, begin + half, direction);
-    Bitonic::cpu_merge(begin + half, end, direction);
+    cpu_merge(begin, begin + half, direction);
+    cpu_merge(begin + half, end, direction);
 }
 
-template <typename T>
-void Bitonic<T>::cpu_sort_recursive(iter begin, iter end, Direction direction)
+} // namespace details
+
+void cpu_sort_recursive(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                        Direction direction)
 {
     std::ptrdiff_t size = end - begin;
     if (size <= 1) { return; }
 
     std::ptrdiff_t half = size / 2;
 
-    Bitonic::cpu_sort_recursive(begin, begin + half, Direction::Ascending);
-    Bitonic::cpu_sort_recursive(begin + half, end, Direction::Descending);
+    cpu_sort_recursive(begin, begin + half, Direction::Ascending);
+    cpu_sort_recursive(begin + half, end, Direction::Descending);
 
-    Bitonic::cpu_merge(begin, end, direction);
+    details::cpu_merge(begin, end, direction);
 }
 
-template <typename T>
-void Bitonic<T>::cpu_sort_iterative(iter begin, iter end, Direction direction)
+void cpu_sort_iterative(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                        Direction direction)
 {
     std::ptrdiff_t size = end - begin;
     if (size <= 1) { return; }
@@ -60,12 +66,14 @@ void Bitonic<T>::cpu_sort_iterative(iter begin, iter end, Direction direction)
             {
                 for (int pos = block_idx * dist; pos < block_idx * dist + dist; ++pos)
                 {
-                    int partner = pos ^ dist;
+                    int partner = pos + dist;
                     bool use_original_direction = (pos & block_size) == 0;
                     Direction local_direction = use_original_direction ? direction : !direction;
-                    Bitonic::cpu_comp_and_swap(begin + pos, begin + partner, local_direction);
+                    details::cpu_comp_and_swap(begin + pos, begin + partner, local_direction);
                 }
             }
         }
     }
 }
+
+} // namespace Bitonic

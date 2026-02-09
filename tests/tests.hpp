@@ -1,12 +1,15 @@
 #pragma once
 
+#include <algorithm>
+#include <chrono>
+#include <functional>
 #include <iostream>
 #include <vector>
 
-#include "bitonic_sort.hpp"
+#include "interface.hpp"
 
 using SortFunction =
-    std::function<void(std::vector<int>::iterator, std::vector<int>::iterator, Direction)>;
+    std::function<void(std::vector<int>::iterator, std::vector<int>::iterator, Bitonic::Direction)>;
 
 void TestBitonicSortsCorrectness(std::size_t start_size, std::size_t end_size);
 
@@ -33,7 +36,7 @@ inline std::ostream& operator<<(std::ostream& ostream, const std::vector<T>& vec
     return ostream;
 }
 
-inline void RandFill(std::vector<int>& vector, int modulo = 1000000)
+inline void RandFill(std::vector<int>& vector, std::size_t modulo = 1000000)
 {
     srand(time(nullptr));
 

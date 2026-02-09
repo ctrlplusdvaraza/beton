@@ -2,6 +2,9 @@ set(SOURCE_FILES
     main.cpp
     correctness.cpp
     performance.cpp
+
+    ${CMAKE_SOURCE_DIR}/src/cpu_sort.cpp
+    ${CMAKE_SOURCE_DIR}/src/gpu_sort.cpp
 )
 
 set(TARGET_NAME tests)

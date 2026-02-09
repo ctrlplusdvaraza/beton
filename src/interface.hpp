@@ -2,6 +2,9 @@
 
 #include <vector>
 
+namespace Bitonic
+{
+
 enum class Direction : int
 {
     Descending = -1,
@@ -15,18 +18,24 @@ inline Direction operator!(Direction dir)
     return Direction::Ascending;
 }
 
-template <typename T>
-class Bitonic
+void cpu_sort_recursive(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                        Direction direction);
+
+void cpu_sort_iterative(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                        Direction direction);
+
+void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+              Direction direction);
+
+namespace details
 {
-  private:
-    using iter = typename std::vector<T>::iterator;
 
-  public:
-    static void cpu_sort_recursive(iter begin, iter end, Direction direction);
-    static void cpu_sort_iterative(iter begin, iter end, Direction direction);
-    static void gpu_sort(iter begin, iter end, Direction direction);
+void cpu_merge(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+               Direction direction);
 
-  private:
-    static void cpu_merge(iter begin, iter end, Direction direction);
-    static void cpu_comp_and_swap(iter first, iter second, Direction direction);
-};
+void cpu_comp_and_swap(std::vector<int>::iterator first, std::vector<int>::iterator second,
+                       Direction direction);
+
+} // namespace details
+
+}; // namespace Bitonic

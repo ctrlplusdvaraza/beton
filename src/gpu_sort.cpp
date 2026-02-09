@@ -1,16 +1,16 @@
-#pragma once
-
-#include "bitonic_cl.hpp"
-#include "bitonic_sort.hpp"
-#include "interface.hpp"
 #include <CL/opencl.hpp>
 #include <iostream>
 #include <type_traits>
 
+#include "bitonic_cl.hpp"
+#include "interface.hpp"
+
+namespace Bitonic
+{
+
 const std::string kOpenClBuildArgs = "-cl-std=CL3.0";
 
-template <typename T>
-void Bitonic<T>::gpu_sort(iter begin, iter end, Direction direction)
+void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end, Direction direction)
 {
     static bool are_kernels_compiled = false;
     static cl::Program bitonic_sort_program(kBitonicClSrc);
@@ -97,3 +97,5 @@ void Bitonic<T>::gpu_sort(iter begin, iter end, Direction direction)
     command_queue.enqueueReadBuffer(buf, CL_TRUE, 0, std::distance(begin, end) * sizeof(float),
                                     &(*begin));
 }
+
+} // namespace Bitonic

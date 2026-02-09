@@ -5,9 +5,9 @@
 
 #include "tests.hpp"
 
-bool IsSorted(const std::vector<int>& vector, Direction direction)
+bool IsSorted(const std::vector<int>& vector, Bitonic::Direction direction)
 {
-    if (direction == Direction::Descending)
+    if (direction == Bitonic::Direction::Descending)
     {
         return std::is_sorted(vector.begin(), vector.end(), std::greater<int>());
     }
@@ -31,8 +31,8 @@ void TestSortCorrectness(SortFunction sort_func, std::size_t start_size, std::si
         // Ascending test
         {
             std::vector<int> arr_ascending = base;
-            sort_func(arr_ascending.begin(), arr_ascending.end(), Direction::Ascending);
-            bool ok_asc = IsSorted(arr_ascending, Direction::Ascending);
+            sort_func(arr_ascending.begin(), arr_ascending.end(), Bitonic::Direction::Ascending);
+            bool ok_asc = IsSorted(arr_ascending, Bitonic::Direction::Ascending);
 
             ++total_tests;
             if (!ok_asc)
@@ -49,8 +49,8 @@ void TestSortCorrectness(SortFunction sort_func, std::size_t start_size, std::si
         // Descending test
         {
             std::vector<int> arr_descending = base;
-            sort_func(arr_descending.begin(), arr_descending.end(), Direction::Descending);
-            bool ok_desc = IsSorted(arr_descending, Direction::Descending);
+            sort_func(arr_descending.begin(), arr_descending.end(), Bitonic::Direction::Descending);
+            bool ok_desc = IsSorted(arr_descending, Bitonic::Direction::Descending);
 
             ++total_tests;
             if (!ok_desc)

@@ -1,11 +1,11 @@
-#include "tests.hpp"
-
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
+
+#include "tests.hpp"
 
 double TestSortPerformance(SortFunction sort_func, const std::vector<int>& base,
                            std::size_t repeats)
@@ -16,7 +16,7 @@ double TestSortPerformance(SortFunction sort_func, const std::vector<int>& base,
     {
         std::vector<int> arr = base;
         auto start = std::chrono::high_resolution_clock::now();
-        sort_func(arr.begin(), arr.end(), Direction::Ascending);
+        sort_func(arr.begin(), arr.end(), Bitonic::Direction::Ascending);
         auto end = std::chrono::high_resolution_clock::now();
         total_time += std::chrono::duration<double, std::milli>(end - start).count();
     }
