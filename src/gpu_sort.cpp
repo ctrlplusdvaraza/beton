@@ -8,28 +8,31 @@
 namespace Bitonic
 {
 
-const std::string kOpenClBuildArgs = "-cl-std=CL3.0";
-
 void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end, Direction direction)
 {
+    const std::string kOpenClBuildArgs = "-cl-std=CL3.0";
+
     static bool are_kernels_compiled = false;
     static cl::Program bitonic_sort_program(kBitonicClSrc);
 
-    try
+    if (!are_kernels_compiled)
     {
-        bitonic_sort_program.build(kOpenClBuildArgs);
-        are_kernels_compiled = true;
-    }
-    catch (...)
-    {
-        cl_int err = CL_SUCCESS;
-        auto build_info = bitonic_sort_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(&err);
-
-        for (auto& kv : build_info)
+        try
         {
-            std::cerr << kv.second << std::endl;
+            bitonic_sort_program.build(kOpenClBuildArgs);
+            are_kernels_compiled = true;
         }
-        throw;
+        catch (...)
+        {
+            cl_int err = CL_SUCCESS;
+            auto build_info = bitonic_sort_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(&err);
+
+            for (auto& kv : build_info)
+            {
+                std::cerr << kv.second << std::endl;
+            }
+            throw;
+        }
     }
 
     auto bitonic_sort_kernel =
@@ -54,15 +57,15 @@ void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end, 
     auto max_workgroup_sz = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
 
     cl::Buffer buf(ctx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                   std::distance(begin, end) * sizeof(float), &(*begin));
+                   std::distance(begin, end) * sizeof(int), &(*begin));
 
     std::size_t local_sz = max_workgroup_sz;
     std::size_t global_sz = (std::distance(begin, end)) / 8;
-    std::size_t ldata_sz = 2 * sizeof(cl_float4) * local_sz;
+    std::size_t ldata_sz = 2 * sizeof(cl_int4) * local_sz;
 
     auto ev = bitonic_sort_kernel(
-        cl::EnqueueArgs(command_queue, cl::NDRange(global_sz), cl::NDRange(local_sz)), buf,
-        cl::Local(ldata_sz));
+        cl::EnqueueArgs(command_queue, cl::NDRange(global_sz), cl::NDRange(local_sz)), 
+        buf,cl::Local(ldata_sz));
 
     ev.wait();
 
@@ -94,7 +97,7 @@ void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end, 
         cl::Local(ldata_sz), static_cast<int>(direction));
 
 
-    command_queue.enqueueReadBuffer(buf, CL_TRUE, 0, std::distance(begin, end) * sizeof(float),
+    command_queue.enqueueReadBuffer(buf, CL_TRUE, 0, std::distance(begin, end) * sizeof(int),
                                     &(*begin));
 }
 

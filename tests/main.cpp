@@ -62,6 +62,7 @@ try
     std::vector<std::pair<std::string, SortFunction>> functions_for_correctness_test = {
         {"std:sort", StdSort},
         {"bitonic (gpu)", Bitonic::gpu_sort},
+        {"bitonic stupid (gpu)", Bitonic::gpu_stupid_sort},
         {"bitonic recursive (cpu)", Bitonic::cpu_sort_recursive},
         {"bitonic iterative (cpu)", Bitonic::cpu_sort_iterative}};
 
@@ -72,7 +73,7 @@ try
     std::size_t performance_end_size = 1ull << 27;
 
     std::vector<std::pair<std::string, SortFunction>> functions_for_test_1 = {
-        {"std:sort", StdSort}, {"bitonic (gpu)", Bitonic::gpu_sort}};
+        {"std:sort", StdSort}, {"bitonic (gpu)", Bitonic::gpu_sort}, {"stupid (gpu)", Bitonic::gpu_stupid_sort}};
 
     CompareSortsPerformance(performance_start_size, performance_end_size, functions_for_test_1);
 

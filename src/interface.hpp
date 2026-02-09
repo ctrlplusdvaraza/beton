@@ -24,8 +24,14 @@ void cpu_sort_recursive(std::vector<int>::iterator begin, std::vector<int>::iter
 void cpu_sort_iterative(std::vector<int>::iterator begin, std::vector<int>::iterator end,
                         Direction direction);
 
+void cpu_sort_iterative_2(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                        Direction direction);
+
 void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
               Direction direction);
+
+void gpu_stupid_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                     Direction direction);
 
 namespace details
 {

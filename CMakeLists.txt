@@ -37,4 +37,19 @@ add_custom_command(
   VERBATIM
 )
 
+set(STUPID_KERNEL_IN  "${CMAKE_SOURCE_DIR}/kernels/stupid.cl")
+set(STUPID_KERNEL_OUT "${CMAKE_CURRENT_BINARY_DIR}/generated/stupid_cl.hpp")
+
+add_custom_command(
+  OUTPUT  "${STUPID_KERNEL_OUT}"
+  COMMAND "${CMAKE_COMMAND}"
+          -DINPUT=${STUPID_KERNEL_IN}
+          -DOUTPUT=${STUPID_KERNEL_OUT}
+          -DVAR_NAME=kStupidClSrc
+          -P "${CMAKE_SOURCE_DIR}/cmake/EmbedAsRawString.cmake"
+  DEPENDS "${STUPID_KERNEL_IN}" "${CMAKE_SOURCE_DIR}/cmake/EmbedAsRawString.cmake"
+  VERBATIM
+)
+
 add_custom_target(bitonic_kernel DEPENDS "${BITONIC_KERNEL_OUT}")
+add_custom_target(stupid_kernel DEPENDS "${STUPID_KERNEL_OUT}")

@@ -66,7 +66,7 @@ void cpu_sort_iterative(std::vector<int>::iterator begin, std::vector<int>::iter
             {
                 for (int pos = block_idx * dist; pos < block_idx * dist + dist; ++pos)
                 {
-                    int partner = pos + dist;
+                    int partner = pos ^ dist;
                     bool use_original_direction = (pos & block_size) == 0;
                     Direction local_direction = use_original_direction ? direction : !direction;
                     details::cpu_comp_and_swap(begin + pos, begin + partner, local_direction);
