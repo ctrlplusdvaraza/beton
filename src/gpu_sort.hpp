@@ -9,11 +9,11 @@
 
 const std::string kOpenClBuildArgs = "-cl-std=CL3.0";
 
-inline cl::Program bitonic_sort_program(kBitonicClSrc);
-
-static void compile_kernels_if_needed()
+template <typename T>
+void Bitonic<T>::gpu_sort(iter begin, iter end, Direction direction)
 {
     static bool are_kernels_compiled = false;
+    static cl::Program bitonic_sort_program(kBitonicClSrc);
 
     try
     {
@@ -31,12 +31,6 @@ static void compile_kernels_if_needed()
         }
         throw;
     }
-}
-
-template <typename T>
-void Bitonic<T>::gpu_sort(iter begin, iter end, Direction direction)
-{
-    compile_kernels_if_needed();
 
     auto bitonic_sort_kernel =
         cl::KernelFunctor<cl::Buffer, cl::LocalSpaceArg>(bitonic_sort_program, "bsort_init");
