@@ -39,6 +39,7 @@ void TestSortCorrectness(SortFunction sort_func, std::size_t start_size, std::si
             {
                 std::cout << "FAILED TEST: " << name << " (size = " << size
                           << ", ASCENDING) NOT SORTED" << std::endl;
+                std::cout << "RESULT: " << arr_ascending << std::endl;
             }
             else
             {
@@ -57,6 +58,7 @@ void TestSortCorrectness(SortFunction sort_func, std::size_t start_size, std::si
             {
                 std::cout << "FAILED TEST: " << name << " (size = " << size
                           << ", DESCENDING) NOT SORTED" << std::endl;
+                std::cout << "RESULT: " << arr_descending << std::endl;
             }
             else
             {
@@ -77,7 +79,9 @@ void TestSortCorrectness(SortFunction sort_func, std::size_t start_size, std::si
     }
 }
 
-void TestBitonicSortsCorrectness(std::size_t start_size, std::size_t end_size)
+void TestBitonicSortsCorrectness(
+    std::size_t start_size, std::size_t end_size,
+    const std::vector<std::pair<std::string, SortFunction>>& sort_functions)
 {
     std::cout << "Running tests to verify sorting correctness..." << std::endl;
 
@@ -87,7 +91,8 @@ void TestBitonicSortsCorrectness(std::size_t start_size, std::size_t end_size)
         return;
     }
 
-    TestSortCorrectness(Bitonic<int>::cpu_sort_iterative, start_size, end_size, "CPU iterative");
-    TestSortCorrectness(Bitonic<int>::cpu_sort_recursive, start_size, end_size, "CPU recursive");
-    TestSortCorrectness(Bitonic<int>::gpu_sort, start_size, end_size, "GPU");
+    for (const auto& [name, sort_func] : sort_functions)
+    {
+        TestSortCorrectness(sort_func, start_size, end_size, name);
+    }
 }

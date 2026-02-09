@@ -1,5 +1,5 @@
-static inline void sort_bitonic_float4(
-    float4* input,
+static inline void sort_bitonic_int4(
+    int4* input,
     int dir,
     uint4 mask1,
     uint4 mask2,
@@ -15,20 +15,20 @@ static inline void sort_bitonic_float4(
     *input = shuffle(*input, as_uint4(comp + add1));
 }
 
-static inline void float4_compare_swap(
-    float4* a,
-    float4* b,
+static inline void int4_compare_swap(
+    int4* a,
+    int4* b,
     int dir,
     int4 add3)
 {
-    float4 ta = *a;
+    int4 ta = *a;
     int4 comp = ((*a < *b) ^ dir) * 4 + add3;
     *a = shuffle2(*a, *b, as_uint4(comp));
     *b = shuffle2(*b, ta, as_uint4(comp));
 }
 
-static inline void float4_sort(
-    float4* input,
+static inline void int4_sort(
+    int4* input,
     int dir,
     uint4 mask1,
     uint4 mask2,
@@ -49,12 +49,12 @@ static inline void float4_sort(
     *input = shuffle(*input, as_uint4(comp + add3));
 }
 
-__kernel void bsort_init(__global float4* g_data, __local float4* l_data)
+__kernel void bsort_init(__global int4* g_data, __local int4* l_data)
 {
 
     int dir;
     uint id, global_start, size, stride;
-    float4 input1, input2, temp;
+    int4 input1, input2, temp;
     int4 comp;
 
     uint4 mask1 = (uint4)(1, 0, 3, 2);
@@ -71,16 +71,16 @@ __kernel void bsort_init(__global float4* g_data, __local float4* l_data)
     input1 = g_data[global_start];
     input2 = g_data[global_start + 1];
 
-    float4_sort(&input1, 0, mask1, mask2, mask3, add1, add2, add3);   // ascending
-    float4_sort(&input2, -1, mask1, mask2, mask3, add1, add2, add3);  // descending
+    int4_sort(&input1, 0, mask1, mask2, mask3, add1, add2, add3);   // ascending
+    int4_sort(&input2, -1, mask1, mask2, mask3, add1, add2, add3);  // descending
 
     /* Swap corresponding elements of input 1 and 2 */
     add3 = (int4)(4, 5, 6, 7);
 
     dir = get_local_id(0) % 2 * -1;
-    float4_compare_swap(&input1, &input2, dir, add3);
-    sort_bitonic_float4(&input1, dir, mask1, mask2, add1, add2);
-    sort_bitonic_float4(&input2, dir, mask1, mask2, add1, add2);
+    int4_compare_swap(&input1, &input2, dir, add3);
+    sort_bitonic_int4(&input1, dir, mask1, mask2, add1, add2);
+    sort_bitonic_int4(&input2, dir, mask1, mask2, add1, add2);
 
     l_data[id] = input1;
     l_data[id + 1] = input2;
@@ -94,7 +94,7 @@ __kernel void bsort_init(__global float4* g_data, __local float4* l_data)
         {
             barrier(CLK_LOCAL_MEM_FENCE);
             id = get_local_id(0) + (get_local_id(0) / stride) * stride;
-            float4_compare_swap(&l_data[id], &l_data[id + stride], dir, add3);
+            int4_compare_swap(&l_data[id], &l_data[id + stride], dir, add3);
         }
 
         barrier(CLK_LOCAL_MEM_FENCE);
@@ -103,9 +103,9 @@ __kernel void bsort_init(__global float4* g_data, __local float4* l_data)
         input1 = l_data[id];
         input2 = l_data[id + 1];
 
-        float4_compare_swap(&input1, &input2, dir, add3);
-        sort_bitonic_float4(&input1, dir, mask1, mask2, add1, add2);
-        sort_bitonic_float4(&input2, dir, mask1, mask2, add1, add2);
+        int4_compare_swap(&input1, &input2, dir, add3);
+        sort_bitonic_int4(&input1, dir, mask1, mask2, add1, add2);
+        sort_bitonic_int4(&input2, dir, mask1, mask2, add1, add2);
     
         l_data[id] = input1;
         l_data[id + 1] = input2;
@@ -117,7 +117,7 @@ __kernel void bsort_init(__global float4* g_data, __local float4* l_data)
     {
         barrier(CLK_LOCAL_MEM_FENCE);
         id = get_local_id(0) + (get_local_id(0) / stride) * stride;
-        float4_compare_swap(&l_data[id], &l_data[id + stride], dir, add3);
+        int4_compare_swap(&l_data[id], &l_data[id + stride], dir, add3);
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -126,20 +126,20 @@ __kernel void bsort_init(__global float4* g_data, __local float4* l_data)
     input1 = l_data[id];
     input2 = l_data[id + 1];
         
-    float4_compare_swap(&input1, &input2, dir, add3);
-    sort_bitonic_float4(&input1, dir, mask1, mask2, add1, add2);
-    sort_bitonic_float4(&input2, dir, mask1, mask2, add1, add2);
+    int4_compare_swap(&input1, &input2, dir, add3);
+    sort_bitonic_int4(&input1, dir, mask1, mask2, add1, add2);
+    sort_bitonic_int4(&input2, dir, mask1, mask2, add1, add2);
     
     g_data[global_start] = input1;
     g_data[global_start + 1] = input2;
 }
 
-__kernel void bsort_stage_0(__global float4* g_data, __local float4* l_data, uint high_stage)
+__kernel void bsort_stage_0(__global int4* g_data, __local int4* l_data, uint high_stage)
 {
 
     int dir;
     uint id, global_start, stride;
-    float4 input1, input2, temp;
+    int4 input1, input2, temp;
     int4 comp;
 
     uint4 mask1 = (uint4)(1, 0, 3, 2);
@@ -166,7 +166,7 @@ __kernel void bsort_stage_0(__global float4* g_data, __local float4* l_data, uin
     {
         barrier(CLK_LOCAL_MEM_FENCE);
         id = get_local_id(0) + (get_local_id(0) / stride) * stride;
-        float4_compare_swap(&l_data[id], &l_data[id + stride], dir, add3);
+        int4_compare_swap(&l_data[id], &l_data[id + stride], dir, add3);
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -175,9 +175,9 @@ __kernel void bsort_stage_0(__global float4* g_data, __local float4* l_data, uin
     input1 = l_data[id];
     input2 = l_data[id + 1];
     
-    float4_compare_swap(&input1, &input2, dir, add3);
-    sort_bitonic_float4(&input1, dir, mask1, mask2, add1, add2);
-    sort_bitonic_float4(&input2, dir, mask1, mask2, add1, add2);
+    int4_compare_swap(&input1, &input2, dir, add3);
+    sort_bitonic_int4(&input1, dir, mask1, mask2, add1, add2);
+    sort_bitonic_int4(&input2, dir, mask1, mask2, add1, add2);
 
     /* Store output in global memory */
     g_data[global_start + get_local_id(0)] = input1;
@@ -185,12 +185,12 @@ __kernel void bsort_stage_0(__global float4* g_data, __local float4* l_data, uin
 }
 
 /* Perform successive stages of the bitonic sort */
-__kernel void bsort_stage_n(__global float4* g_data, __local float4* l_data, uint stage,
+__kernel void bsort_stage_n(__global int4* g_data, __local int4* l_data, uint stage,
                             uint high_stage)
 {
 
     int dir;
-    float4 input1, input2;
+    int4 input1, input2;
     int4 comp, add;
     uint global_start, global_offset;
 
@@ -211,10 +211,10 @@ __kernel void bsort_stage_n(__global float4* g_data, __local float4* l_data, uin
 }
 
 /* Sort the bitonic set */
-__kernel void bsort_merge(__global float4* g_data, __local float4* l_data, uint stage, int dir)
+__kernel void bsort_merge(__global int4* g_data, __local int4* l_data, uint stage, int dir)
 {
 
-    float4 input1, input2;
+    int4 input1, input2;
     int4 comp, add;
     uint global_start, global_offset;
 
@@ -228,16 +228,16 @@ __kernel void bsort_merge(__global float4* g_data, __local float4* l_data, uint 
 
     input1 = g_data[global_start];
     input2 = g_data[global_start + global_offset];
-    float4_compare_swap(&input1, &input2, dir, add);
+    int4_compare_swap(&input1, &input2, dir, add);
     g_data[global_start] = input1;
     g_data[global_start + global_offset] = input2;
 }
 
 /* Perform final step of the bitonic merge */
-__kernel void bsort_merge_last(__global float4* g_data, __local float4* l_data, int dir)
+__kernel void bsort_merge_last(__global int4* g_data, __local int4* l_data, int dir)
 {
     uint id, global_start, stride;
-    float4 input1, input2, temp;
+    int4 input1, input2, temp;
     int4 comp;
 
     uint4 mask1 = (uint4)(1, 0, 3, 2);
@@ -256,9 +256,9 @@ __kernel void bsort_merge_last(__global float4* g_data, __local float4* l_data, 
     input1 = g_data[global_start];
     input2 = g_data[global_start + get_local_size(0)];
 
-    float4 temp1 = input1;
-    float4 temp2 = input2;
-    float4_compare_swap(&temp1, &temp2, dir, add3);
+    int4 temp1 = input1;
+    int4 temp2 = input2;
+    int4_compare_swap(&temp1, &temp2, dir, add3);
     l_data[id] = temp1;
     l_data[id + get_local_size(0)] = temp2;
 
@@ -267,7 +267,7 @@ __kernel void bsort_merge_last(__global float4* g_data, __local float4* l_data, 
     {
         barrier(CLK_LOCAL_MEM_FENCE);
         id = get_local_id(0) + (get_local_id(0) / stride) * stride;
-        float4_compare_swap(&l_data[id], &l_data[id + stride], dir, add3);
+        int4_compare_swap(&l_data[id], &l_data[id + stride], dir, add3);
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -276,9 +276,9 @@ __kernel void bsort_merge_last(__global float4* g_data, __local float4* l_data, 
     input1 = l_data[id];
     input2 = l_data[id + 1];
 
-    float4_compare_swap(&input1, &input2, dir, add3);
-    sort_bitonic_float4(&input1, dir, mask1, mask2, add1, add2);
-    sort_bitonic_float4(&input2, dir, mask1, mask2, add1, add2);
+    int4_compare_swap(&input1, &input2, dir, add3);
+    sort_bitonic_int4(&input1, dir, mask1, mask2, add1, add2);
+    sort_bitonic_int4(&input2, dir, mask1, mask2, add1, add2);
 
     g_data[global_start + get_local_id(0)] = input1;
     g_data[global_start + get_local_id(0) + 1] = input2;
