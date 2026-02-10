@@ -51,7 +51,6 @@ static inline void int4_sort(
 
 __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
 {
-
     int dir;
     uint id, global_start, size, stride;
     int4 input1, input2, temp;
@@ -136,7 +135,6 @@ __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
 
 __kernel void bsort_stage_0(__global int4* g_data, __local int4* l_data, uint high_stage)
 {
-
     int dir;
     uint id, global_start, stride;
     int4 input1, input2, temp;
@@ -188,7 +186,6 @@ __kernel void bsort_stage_0(__global int4* g_data, __local int4* l_data, uint hi
 __kernel void bsort_stage_n(__global int4* g_data, __local int4* l_data, uint stage,
                             uint high_stage)
 {
-
     int dir;
     int4 input1, input2;
     int4 comp, add;
@@ -213,7 +210,6 @@ __kernel void bsort_stage_n(__global int4* g_data, __local int4* l_data, uint st
 /* Sort the bitonic set */
 __kernel void bsort_merge(__global int4* g_data, __local int4* l_data, uint stage, int dir)
 {
-
     int4 input1, input2;
     int4 comp, add;
     uint global_start, global_offset;
@@ -224,7 +220,6 @@ __kernel void bsort_merge(__global int4* g_data, __local int4* l_data, uint stag
     global_start =
         (get_group_id(0) + (get_group_id(0) / stage) * stage) * get_local_size(0) + get_local_id(0);
     global_offset = stage * get_local_size(0);
-
 
     input1 = g_data[global_start];
     input2 = g_data[global_start + global_offset];

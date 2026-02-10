@@ -4,45 +4,24 @@
 #include <iostream>
 
 #include "interface.hpp"
+#include "opencl_utils.hpp"
 #include "stupid_cl.hpp"
 
 namespace Bitonic
 {
 
-namespace details
-{
-
-void build_kernels(bool& are_kernels_compiled, cl::Program& program)
-{
-    static const std::string kOpenClBuildArgs = "-cl-std=CL3.0";
-
-    try
-    {
-        program.build(kOpenClBuildArgs);
-        are_kernels_compiled = true;
-    }
-    catch (...)
-    {
-        cl_int err = CL_SUCCESS;
-        auto build_info = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(&err);
-
-        for (auto& kv : build_info)
-        {
-            std::cerr << kv.second << std::endl;
-        }
-        throw;
-    }
-}
-
-} // namespace details
-
 void gpu_stupid_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
                      Direction direction)
 {
-    static bool are_kernels_compiled = false;
-    static cl::Program bitonic_sort_kernels(kStupidClSrc);
+    static bool is_platform_initialized = false;
+    if (!is_platform_initialized) { details::init_platform(); }
 
-    if (!are_kernels_compiled) { details::build_kernels(are_kernels_compiled, bitonic_sort_kernels); }
+    static bool are_kernels_compiled = false;
+    static cl::Program bitonic_sort_program(kStupidClSrc);
+    if (!are_kernels_compiled)
+    {
+        details::build_kernels(are_kernels_compiled, bitonic_sort_program);
+    }
 
 
     cl::Context context = cl::Context::getDefault();
@@ -51,7 +30,7 @@ void gpu_stupid_sort(std::vector<int>::iterator begin, std::vector<int>::iterato
     cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
 
 
-    cl::Kernel kernel(bitonic_sort_kernels, "bitonic_step");
+    cl::Kernel kernel(bitonic_sort_program, "bitonic_step");
 
     std::size_t array_size = std::distance(begin, end);
     if (array_size <= 1) { return; }
@@ -70,7 +49,8 @@ void gpu_stupid_sort(std::vector<int>::iterator begin, std::vector<int>::iterato
             kernel.setArg(2, dist);
             kernel.setArg(3, dir);
 
-            command_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(array_size), cl::NullRange);
+            command_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(array_size),
+                                               cl::NullRange);
             command_queue.finish();
         }
     }

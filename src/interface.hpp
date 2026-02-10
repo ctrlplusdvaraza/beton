@@ -33,15 +33,4 @@ void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
 void gpu_stupid_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
                      Direction direction);
 
-namespace details
-{
-
-void cpu_merge(std::vector<int>::iterator begin, std::vector<int>::iterator end,
-               Direction direction);
-
-void cpu_comp_and_swap(std::vector<int>::iterator first, std::vector<int>::iterator second,
-                       Direction direction);
-
-} // namespace details
-
 }; // namespace Bitonic
