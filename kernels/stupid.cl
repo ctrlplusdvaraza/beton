@@ -2,8 +2,11 @@ __kernel void bitonic_step(__global int* array, const uint block_size, const uin
                            int direction)
 {
     uint pos = get_global_id(0);
+
+    uint block_index = pos / dist;
+    pos += block_index * dist;
+
     uint partner = pos ^ dist;
-    if (partner < pos) { return; }
 
     int use_original_direction = (pos & block_size) == 0;
     int local_direction = use_original_direction ? direction : (-1 - direction);

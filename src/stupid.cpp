@@ -49,9 +49,10 @@ void gpu_stupid_sort(std::vector<int>::iterator begin, std::vector<int>::iterato
             kernel.setArg(2, dist);
             kernel.setArg(3, dir);
 
-            command_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(array_size),
+            command_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(array_size / 2),
                                                cl::NullRange);
             command_queue.finish();
+
         }
     }
 
