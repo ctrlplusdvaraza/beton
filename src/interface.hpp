@@ -7,8 +7,8 @@ namespace Bitonic
 
 enum class Direction : int
 {
-    Descending = -1,
-    Ascending = 0
+    Descending = 0,
+    Ascending = 1
 };
 
 inline Direction operator!(Direction dir)
@@ -21,16 +21,29 @@ inline Direction operator!(Direction dir)
 void cpu_sort_recursive(std::vector<int>::iterator begin, std::vector<int>::iterator end,
                         Direction direction);
 
-void cpu_sort_iterative(std::vector<int>::iterator begin, std::vector<int>::iterator end,
-                        Direction direction);
+void cpu_sort_iterative_0(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                          Direction direction);
+
+void cpu_sort_iterative_1(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                          Direction direction);
 
 void cpu_sort_iterative_2(std::vector<int>::iterator begin, std::vector<int>::iterator end,
-                        Direction direction);
+                          Direction direction);
+
+void cpu_sort_iterative_3(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                          Direction direction);
+
+void gpu_naive_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                    Direction direction);
+
+void gpu_naive_sort_better(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                           Direction direction);
+
+void gpu_naive_sort_best(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                         Direction direction);
 
 void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
               Direction direction);
 
-void gpu_stupid_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
-                     Direction direction);
 
 }; // namespace Bitonic

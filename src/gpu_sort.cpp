@@ -53,22 +53,24 @@ void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end, 
     cl::Buffer array(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, array_size * sizeof(int),
                      &(*begin));
 
-    std::size_t local_size = max_workgroup_size;
-    std::size_t global_size = array_size / 8;
+    std::size_t local_size = max_workgroup_size; //workgroup size
+    std::size_t global_size = array_size / 8; // work items count
     std::size_t ldata_size = 2 * sizeof(cl_int4) * local_size;
 
+    // INIT bsort
     auto ev = bitonic_sort_kernel(
         cl::EnqueueArgs(command_queue, cl::NDRange(global_size), cl::NDRange(local_size)), array,
         cl::Local(ldata_size));
 
     ev.wait();
 
-    std::size_t num_stages = global_size / local_size;
+    std::size_t num_stages = global_size / local_size; // num stages = workgroup count 
 
     for (std::size_t high_stage = 2; high_stage < num_stages; high_stage *= 2)
     {
         for (std::size_t stage = high_stage; stage > 1; stage /= 2)
         {
+            // if high stage fit in local memory -> use bsort_stage_n_local, else -> bsort_stage_n_global
             bitonic_stage_n_kernel(
                 cl::EnqueueArgs(command_queue, cl::NDRange(global_size), cl::NDRange(local_size)),
                 array, cl::Local(ldata_size), stage, high_stage);
