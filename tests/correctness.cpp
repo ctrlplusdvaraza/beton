@@ -39,7 +39,6 @@ void TestSortCorrectness(SortFunction sort_func, std::size_t start_size, std::si
             {
                 std::cout << "FAILED TEST: " << name << " (size = " << size
                           << ", ASCENDING) NOT SORTED" << std::endl;
-                std::cout << "RESULT: " << arr_ascending << std::endl;
             }
             else
             {
@@ -58,7 +57,6 @@ void TestSortCorrectness(SortFunction sort_func, std::size_t start_size, std::si
             {
                 std::cout << "FAILED TEST: " << name << " (size = " << size
                           << ", DESCENDING) NOT SORTED" << std::endl;
-                std::cout << "RESULT: " << arr_descending << std::endl;
             }
             else
             {

@@ -5,6 +5,7 @@ set(SOURCE_FILES
 
     ${CMAKE_SOURCE_DIR}/src/cpu_sort.cpp
     ${CMAKE_SOURCE_DIR}/src/gpu_sort.cpp
+    ${CMAKE_SOURCE_DIR}/src/gpu_naive.cpp
 )
 
 set(TARGET_NAME tests)
@@ -25,3 +26,4 @@ target_compile_definitions(${TARGET_NAME} PRIVATE
 )
 
 add_dependencies(tests bitonic_kernel)
+add_dependencies(tests naive_kernel)
