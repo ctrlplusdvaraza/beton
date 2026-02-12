@@ -5,8 +5,24 @@
 - [Введение](#введение)
 - [Реализация на CPU](#реализация-на-cpu)
 - [Наивная релизация на GPU](#наивная-реализация-на-gpu)
+- [Реализация с использованием локальной памяти на GPU](#реализация-с-использованием-локальной-памяти-на-gpu)
 
 ## Введение
+
+### Характеристики тестирующего оборудования
+
+OS: Fedora Linux 43 (Workstation Edition) x86_64
+CPU: 13th Gen Intel(R) Core(TM) i5-13500H (16) @ 4.70 GHz
+GPU: Intel Iris Xe Graphics @ 1.45 GHz [Integrated]
+Memory: 15.24 GiB
+
+### Использованные утилиты
+
+Профилировщик [Perf](https://perfwiki.github.io/main/)
+Профилировщик [Intel Vtune Profiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/vtune-profiler-download.html)
+
+### Об алгоритме
+
 В этой работе мы хотим реализовать алгоритм битонической сортировки на GPU. 
 
 Алгоритм основан на сортировке битонических последовательностей. Такой последовательностью называется последовательность, которая сначала монотонно не убывает, а затем монотонно не возрастает. 
@@ -146,7 +162,7 @@ xor гарантирует, что pos и partner находятся в одно
 
 ![Странность](img/cpu_sort/cpu_compare_0.png)
 
-Обычно итеративные варианты алгоритмов работают быстрее рекурсивных из-за накладных расходов на рекурсию, это нас и насторожило! Поэтому мы начали профилировать, используя perf.
+Обычно итеративные варианты алгоритмов работают быстрее рекурсивных из-за накладных расходов на рекурсию, это нас и насторожило! Поэтому мы начали профилировать, используя [Perf](https://perfwiki.github.io/main/).
 
 Perf запускался со следующими флагами:
 ```sh
@@ -319,3 +335,89 @@ void cpu_sort_iterative_3(std::vector<int>::iterator begin, std::vector<int>::it
 
 ## Наивная реализация на GPU
 
+Интересно будет написать три варианта наивной сортировки на GPU, аналогичные cpu_sort_iterative_0, cpu_sort_iterative_2, cpu_sort_iterative_3 и сравнить их по производительности. Действительно ли полезными оказались придуманные оптимизации?
+
+Для удобства приводим таблицу с основными отличиями:
+
+| Функция              | Количество if на каждую итерацию цикла | Сложные вычисления |
+|----------------------|----------------------------------------|--------------------|
+| cpu_sort_iterative_0 | 3                                      | Нет                |
+| cpu_sort_iterative_2 | 1                                      | Да                 |
+| cpu_sort_iterative_3 | 0                                      | Нет                |
+
+Кернела на OpenCL и хостовый код практически ничем не будут отличаться от итеративных функий, но для полноты приведу код трёх получившихся кернелов, которые заменяют внутренний цикл по ```pos```.
+
+Кернел, аналогичный ```cpu_sort_iterative_0```:
+```cpp
+__kernel void bitonic_step_naive(__global int* array, const uint block_size, const uint dist,
+                                 int direction)
+{
+    uint pos = get_global_id(0);
+
+    uint partner = pos ^ dist;
+    if (partner < pos) { return; }
+
+    int use_reversed_direction = (pos & block_size) != 0;
+    int local_direction = direction ^ use_reversed_direction;
+
+    COMP_AND_SWAP(array[pos], array[partner], local_direction);
+}
+```
+
+Кернел, аналогичный ```cpu_sort_iterative_2```:
+```cpp
+__kernel void bitonic_step_better(__global int* array, const uint block_size, const uint dist,
+                                  int direction)
+{
+    uint pos = get_global_id(0);
+
+    uint block_index = pos / dist;
+    pos += block_index * dist;
+
+    uint partner = pos ^ dist;
+
+    int use_reversed_direction = (pos & block_size) != 0;
+    int local_direction = direction ^ use_reversed_direction;
+
+    COMP_AND_SWAP(array[pos], array[partner], local_direction);
+}
+```
+
+Кернел, аналогичный ```cpu_sort_iterative_3```:
+```cpp
+__kernel void bitonic_step_best(__global int* array, const uint block_size,
+                                const uint block_size_log, const uint dist_log, int direction)
+{
+    uint pos = get_global_id(0);
+
+    uint dist = 1ul << dist_log;
+
+    uint block_index = pos >> dist_log;
+    pos += block_index << dist_log;
+
+    uint partner = pos ^ dist;
+
+    int use_reversed_direction = (pos & block_size) != 0;
+    int local_direction = direction ^ use_reversed_direction;
+
+    COMP_AND_SWAP(array[pos], array[partner], local_direction);
+}
+```
+
+Сравнив скорость работы этих трёх реализаций, можно убедиться, что... 
+
+![мда...](img/gpu_sort/naive_compare.png)
+
+Время примерно одинаковое... Что-ж, давайте профилировать и узнавать в чём дело.
+
+Использованный профилировщик: [Intel Vtune Profiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/vtune-profiler-download.html)
+
+![Наивный](img/gpu_sort/naive_prof.png)
+![Наивный получше](img/gpu_sort/naive_better_prof.png)
+![Наивный лучший](img/gpu_sort/naive_best_prof.png)
+
+Профилировщик тоже показывает, что все три реализации практически ничем не отличаются. И красным тексом подсказывает нам, что >90% времени EU находятся в состоянии stalled, то есть ничего не делают и ожидают подгрузку памяти. А значит никакие оптимизации вычислений нам не помогут, ведь большую часть времени мы тратим на простой и ожидание подгрузки памяти. 
+
+Таким образом, мы переходим к следующему этапу: чтобы сократить время ожидания данных, используем в нашем алгоритме локальную память видеокарты.
+
+## Реализация с использованием локальной памяти на GPU

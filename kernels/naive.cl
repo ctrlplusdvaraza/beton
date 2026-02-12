@@ -1,8 +1,7 @@
 /*
 The most naive implementation of bitonic sort.
 
-In bitonic_step_naive work items most of the time *idle* (do nothing).
-In bitonic_step_better work items most of the time *stalled* (waiting for data from memory).
+In all bitonic_step functions work items most of the time *stalled* (waiting for data from memory).
 
 Conclusion: To improve performance, we need to reduce memory latency (for example, by using local
 memory)
