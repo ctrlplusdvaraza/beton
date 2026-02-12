@@ -66,16 +66,13 @@ try
     // TestBitonicSortsCorrectness(correctness_start_size, correctness_end_size,
     //                             functions_for_correctness_test);
 
-    std::size_t performance_start_size = 1ull << 23;
-    std::size_t performance_end_size = 1ull << 23;
-
-    // std::vector<std::pair<std::string, SortFunction>> functions_for_test_1 = {
-    //     {"naive (gpu)", Bitonic::gpu_naive_sort},
-    //     {"naive better (gpu)", Bitonic::gpu_naive_sort_better},
-    //     {"naive best (gpu)", Bitonic::gpu_naive_sort_best}};
+    std::size_t performance_start_size = 1ull << 27;
+    std::size_t performance_end_size = 1ull << 27;
 
     std::vector<std::pair<std::string, SortFunction>> functions_for_test_1 = {
-        {"bitonic recursive", Bitonic::cpu_sort_recursive}};
+        // {"naive (gpu)", Bitonic::gpu_naive_sort}};
+        // {"naive better (gpu)", Bitonic::gpu_naive_sort_better}};
+        {"naive best (gpu)", Bitonic::gpu_naive_sort_best}};
 
     CompareSortsPerformance(performance_start_size, performance_end_size, functions_for_test_1);
 }
