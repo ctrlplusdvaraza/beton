@@ -48,6 +48,16 @@ static inline void sort_bitonic_int4(int4* input, int dir)
     *input = shuffle(*input, as_uint4(comp + add1));
 }
 
+static inline void bitonic_local_merge(__local int4* l_data, int start_stride, int dir) {
+    for (int stride = start_stride; stride > 1; stride >>= 1)
+    {
+        barrier(CLK_LOCAL_MEM_FENCE);
+        int id = get_local_id(0) + (get_local_id(0) / stride) * stride;
+        int4_compare_swap(&l_data[id], &l_data[id + stride], dir);
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+}
+
 // TODO try bubble sort for 8, 16 elements
 // sorting array with size = wgrp_size * 8 (only one work group is sorting)
 __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
@@ -67,8 +77,6 @@ __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
     int4_sort(&input2, -1); // descending
 
     /* Swap corresponding elements of input 1 and 2 */
-   
-
     dir = get_local_id(0) % 2 * -1;
     int4_compare_swap(&input1, &input2, dir);
 
@@ -83,14 +91,7 @@ __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
     {
         dir = (get_local_id(0) / size & 1) * -1;
 
-        for (stride = size; stride > 1; stride >>= 1) // distance
-        {
-            barrier(CLK_LOCAL_MEM_FENCE);
-            id = get_local_id(0) + (get_local_id(0) / stride) * stride;
-            int4_compare_swap(&l_data[id], &l_data[id + stride], dir);
-        }
-
-        barrier(CLK_LOCAL_MEM_FENCE);
+        bitonic_local_merge(l_data, size, dir);
         id = get_local_id(0) * 2;
 
         input1 = l_data[id];
@@ -106,14 +107,8 @@ __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
 
     /* Perform bitonic merge */
     dir = (get_group_id(0) % 2) * -1;
-    for (stride = get_local_size(0); stride > 1; stride >>= 1)
-    {
-        barrier(CLK_LOCAL_MEM_FENCE);
-        id = get_local_id(0) + (get_local_id(0) / stride) * stride;
-        int4_compare_swap(&l_data[id], &l_data[id + stride], dir);
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-
+    bitonic_local_merge(l_data, get_local_size(0), dir);
+    
     /* Perform final sort */
     id = get_local_id(0) * 2;
     input1 = l_data[id];
@@ -224,15 +219,6 @@ __kernel void bsort_merge_last(__global int4* g_data, __local int4* l_data, int 
     uint id, global_start, stride;
     int4 input1, input2, temp;
     int4 comp;
-
-    uint4 mask1 = (uint4)(1, 0, 3, 2);
-    uint4 mask2 = (uint4)(2, 3, 0, 1);
-    uint4 mask3 = (uint4)(3, 2, 1, 0);
-
-    int4 add1 = (int4)(1, 1, 3, 3);
-    int4 add2 = (int4)(2, 3, 2, 3);
-    int4 add3 = (int4)(4, 5, 6, 7);
-
     /* Determine location of data in global memory */
     id = get_local_id(0);
     global_start = get_group_id(0) * get_local_size(0) * 2 + id;
@@ -247,14 +233,9 @@ __kernel void bsort_merge_last(__global int4* g_data, __local int4* l_data, int 
     l_data[id] = temp1;
     l_data[id + get_local_size(0)] = temp2;
 
-    /* Perform bitonic merge */
-    for (stride = get_local_size(0) / 2; stride > 1; stride >>= 1)
-    {
-        barrier(CLK_LOCAL_MEM_FENCE);
-        id = get_local_id(0) + (get_local_id(0) / stride) * stride;
-        int4_compare_swap(&l_data[id], &l_data[id + stride], dir);
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
+
+    bitonic_local_merge(l_data, get_local_size(0) / 2, dir);
+
 
     /* Perform final sort */
     id = get_local_id(0) * 2;
