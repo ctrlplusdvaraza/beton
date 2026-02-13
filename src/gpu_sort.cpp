@@ -11,8 +11,10 @@
 namespace Bitonic
 {
 
-void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end, Direction direction)
+void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end, Direction inp_direction)
 {
+    int direction = (inp_direction == Direction::Ascending) ? 0 : -1;
+
     static bool is_platform_initialized = false;
     if (!is_platform_initialized) { details::init_platform(); }
 
@@ -85,12 +87,12 @@ void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end, 
     {
         bitonic_merge_kernel(
             cl::EnqueueArgs(command_queue, cl::NDRange(global_size), cl::NDRange(local_size)),
-            array, cl::Local(ldata_size), stage, static_cast<int>(direction));
+            array, cl::Local(ldata_size), stage, direction);
     }
 
     bitonic_merge_last_kernel(
         cl::EnqueueArgs(command_queue, cl::NDRange(global_size), cl::NDRange(local_size)), array,
-        cl::Local(ldata_size), static_cast<int>(direction));
+        cl::Local(ldata_size), direction);
 
 
     command_queue.enqueueReadBuffer(array, CL_TRUE, 0, array_size * sizeof(int), &(*begin));
