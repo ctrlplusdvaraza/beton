@@ -140,15 +140,20 @@ __kernel void bsort_stage_0(__global int4* g_data, __local int4* l_data, uint hi
 /* Perform successive stages of the bitonic sort */
 __kernel void bsort_stage_n(__global int4* g_data, __local int4* l_data, uint stage, uint high_stage)
 {
+    const int local_id = get_local_id(0);
+    const int local_size = get_local_size(0);
+
     int dir             = (get_group_id(0) / high_stage & 1) * -1;
     int global_start    = (get_group_id(0) + (get_group_id(0) / stage) * stage) * get_local_size(0) + get_local_id(0);
     int global_offset   = stage * get_local_size(0);
 
-    int4 input1 = g_data[global_start];
-    int4 input2 = g_data[global_start + global_offset];
-    int4_compare_swap(&input1, &input2, dir);
-    g_data[global_start] = input1;
-    g_data[global_start + global_offset] = input2;
+    l_data[local_id]                 = g_data[global_start];
+    l_data[local_id + local_size]    = g_data[global_start + global_offset];
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    int4_compare_swap(&l_data[local_id], &l_data[local_id + local_size], dir);
+    g_data[global_start] = l_data[local_id];
+    g_data[global_start + global_offset] = l_data[local_id + local_size];
 }
 
 /* Sort the bitonic set */
