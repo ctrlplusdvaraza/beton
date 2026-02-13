@@ -48,6 +48,9 @@ static inline void sort_bitonic_int4(int4* input, int dir)
     *input = shuffle(*input, as_uint4(comp + add1));
 }
 
+
+// Input: a bitonic sequence in local memory
+// Output: the same block is fully sorted in dir
 static inline void bitonic_local_merge(__local int4* l_data, int start_stride, int dir) {
     for (int stride = start_stride; stride > 1; stride >>= 1)
     {
@@ -58,30 +61,37 @@ static inline void bitonic_local_merge(__local int4* l_data, int start_stride, i
     barrier(CLK_LOCAL_MEM_FENCE);
 }
 
+static inline void bitonic_local_finalize(__local int4* l_data, int id, int dir)
+{
+    int4 input1 = l_data[id];
+    int4 input2 = l_data[id + 1];
+    int4_compare_swap(&input1, &input2, dir);
+    sort_bitonic_int4(&input1, dir);
+    sort_bitonic_int4(&input2, dir);
+    l_data[id] = input1;
+    l_data[id + 1] = input2;
+}
+
 // TODO try bubble sort for 8, 16 elements
 // sorting array with size = wgrp_size * 8 (only one work group is sorting)
 __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
 {   
-    int dir;
-
     int id = get_local_id(0) * 2;
     int global_start = get_group_id(0) * get_local_size(0) * 2 + id;
 
     int4 input1 = g_data[global_start];
     int4 input2 = g_data[global_start + 1];
 
-    dir = get_local_id(0) % 2 * -1;
+    int dir = get_local_id(0) % 2 * -1;
 
     int4_sort(&input1, 0);  // ascending
     int4_sort(&input2, -1); // descending
-
-    /* Swap corresponding elements of input 1 and 2 */
-    
     int4_compare_swap(&input1, &input2, dir);
     sort_bitonic_int4(&input1, dir);
     sort_bitonic_int4(&input2, dir);
     l_data[id] = input1;
     l_data[id + 1] = input2;
+
 
     /* Create bitonic set */
     for (int size = 2; size < get_local_size(0); size <<= 1)
@@ -89,15 +99,7 @@ __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
         dir = (get_local_id(0) / size & 1) * -1;
 
         bitonic_local_merge(l_data, size, dir);
-    
-        id = get_local_id(0) * 2;
-        input1 = l_data[id];
-        input2 = l_data[id + 1];
-        int4_compare_swap(&input1, &input2, dir);
-        sort_bitonic_int4(&input1, dir);
-        sort_bitonic_int4(&input2, dir);
-        l_data[id] = input1;
-        l_data[id + 1] = input2;
+        bitonic_local_finalize(l_data, /*id=*/get_local_id(0) * 2, dir);
     }
 
     /* Perform bitonic merge */
@@ -117,38 +119,27 @@ __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
 
 __kernel void bsort_stage_0(__global int4* g_data, __local int4* l_data, uint high_stage)
 {
-    int id = get_local_id(0);
-    int dir = (get_group_id(0) / high_stage & 1) * -1;
-    int global_start = get_group_id(0) * (get_local_size(0) * 2) + id;
+    const int local_size = get_local_size(0);
+    const int local_id   = get_local_id(0);
+    const int group_id   = get_group_id(0);
 
-    /* Perform initial swap */
-    int4 input1 = g_data[global_start];
-    int4 input2 = g_data[global_start + get_local_size(0)];
-    
-    int4_compare_swap(&input1, &input2, dir);
+    int dir = (group_id / high_stage & 1) ? -1 : 0;
+    int group_base = group_id * (local_size * 2);
 
-    l_data[id] = input1;
-    l_data[id + get_local_size(0)] = input2;
+    l_data[local_id]                 = g_data[group_base + local_id];           
+    l_data[local_id + local_size]    = g_data[group_base + local_id + local_size]; 
+    barrier(CLK_LOCAL_MEM_FENCE);
 
-    /* Perform bitonic merge */
-    bitonic_local_merge(l_data, get_local_size(0) / 2, dir); 
-
-    /* Perform final sort */
-    id = get_local_id(0) * 2;
-    input1 = l_data[id];
-    input2 = l_data[id + 1];
-    int4_compare_swap(&input1, &input2, dir);
-    sort_bitonic_int4(&input1, dir);
-    sort_bitonic_int4(&input2, dir);
-    g_data[global_start + get_local_id(0)] = input1;
-    g_data[global_start + get_local_id(0) + 1] = input2;
+    bitonic_local_merge(l_data, local_size, dir);
+    int id2 = local_id * 2;
+    bitonic_local_finalize(l_data, id2, dir);
+    g_data[group_base + id2]     = l_data[id2];
+    g_data[group_base + id2 + 1] = l_data[id2 + 1];
 }
 
 /* Perform successive stages of the bitonic sort */
-__kernel void bsort_stage_n(__global int4* g_data, __local int4* l_data, uint stage,
-                            uint high_stage)
+__kernel void bsort_stage_n(__global int4* g_data, __local int4* l_data, uint stage, uint high_stage)
 {
-    /* Determine location of data in global memory */
     int dir             = (get_group_id(0) / high_stage & 1) * -1;
     int global_start    = (get_group_id(0) + (get_group_id(0) / stage) * stage) * get_local_size(0) + get_local_id(0);
     int global_offset   = stage * get_local_size(0);
@@ -178,7 +169,6 @@ __kernel void bsort_merge_last(__global int4* g_data, __local int4* l_data, int 
 {
     /* Determine location of data in global memory */
     int id;
-
     id = get_local_id(0);
     int global_start = get_group_id(0) * get_local_size(0) * 2 + id;
 
