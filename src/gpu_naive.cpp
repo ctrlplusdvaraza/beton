@@ -56,6 +56,8 @@ void gpu_naive_sort(std::vector<int>::iterator begin, std::vector<int>::iterator
     command_queue.enqueueReadBuffer(array, CL_TRUE, 0, array_size * sizeof(int), &(*begin));
 }
 
+/* --------------------------------------------------------------------------------------------- */
+
 void gpu_naive_sort_better(std::vector<int>::iterator begin, std::vector<int>::iterator end,
                            Direction direction)
 {
@@ -100,6 +102,8 @@ void gpu_naive_sort_better(std::vector<int>::iterator begin, std::vector<int>::i
 
     command_queue.enqueueReadBuffer(array, CL_TRUE, 0, array_size * sizeof(int), &(*begin));
 }
+
+/* --------------------------------------------------------------------------------------------- */
 
 void gpu_naive_sort_best(std::vector<int>::iterator begin, std::vector<int>::iterator end,
                          Direction direction)

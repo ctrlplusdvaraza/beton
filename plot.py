@@ -3,16 +3,14 @@
 import sys
 import matplotlib.pyplot as plt
 
-for x in sys.stdin.readlines():
-    if not x.startswith("sorted sequence"):
-        continue
+# Read numbers from stdin
+nums = list(map(int, input().split()))
 
-    nums = list(map(int, x.split(":")[1].split()))
-    print(nums)
-    plt.plot(nums, linestyle='None', marker='.')
-    plt.show()
+# Changed linestyle to '-' (solid line) and kept markers
+plt.plot(nums, linestyle='-', marker='.', markersize=8)
 
-    exit(0)
-
-print("sorted sequence not found")
-exit(1)
+plt.xlabel('Index')
+plt.ylabel('Value')
+plt.title('Sorted Sequence')
+plt.grid(True, alpha=0.3)
+plt.show()

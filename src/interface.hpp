@@ -61,6 +61,9 @@ void gpu_local_sort_best(std::vector<int>::iterator begin, std::vector<int>::ite
 
 /* --------------------------------------------------------------------------------------------- */
 
+void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                       Direction direction);
+
 void gpu_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
               Direction direction);
 
