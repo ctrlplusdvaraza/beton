@@ -17,13 +17,6 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
                        Direction direction)
 {
 
-    // std::cout << "init array:\n";
-    // for (auto to = begin; to != end; to++) {
-    //     std::cout << *(to) << " ";
-    // }
-    // std::cout << "\n";
-
-
     static bool is_platform_initialized = false;
     if (!is_platform_initialized) { details::init_platform(); }
 
@@ -43,9 +36,9 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
     cl::CommandQueue command_queue(context);
 
     cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
-    // cl_ulong local_mem_size = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>();
-    // cl_uint max_slm_elems = local_mem_size / sizeof(int);
-    // cl_uint elems_per_thread = max_slm_elems / max_workgroup_size;
+    cl_ulong local_mem_size = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>();
+    cl_uint max_slm_elems = local_mem_size / sizeof(int);
+    cl_uint elems_per_thread = max_slm_elems / max_workgroup_size;
 
 
     std::size_t array_size = std::distance(begin, end);
@@ -58,25 +51,13 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
 
     cl::NDRange local_range(max_workgroup_size);
     cl::NDRange global_range_1(array_size / ELEMS_PER_THREAD);
-    // cl::NDRange global_range_1((array_size / max_slm_elems) * max_slm_elems);
 
     kernel_local_max_slm.setArg(0, array);
     kernel_local_max_slm.setArg(1, cl::Local(max_workgroup_size * ELEMS_PER_THREAD * sizeof(int)));
     kernel_local_max_slm.setArg(2, dir);
 
-    command_queue.enqueueNDRangeKernel(kernel_local_max_slm, cl::NullRange, global_range_1,
-                                       local_range);
-    command_queue.finish();
+    command_queue.enqueueNDRangeKernel(kernel_local_max_slm, cl::NullRange, global_range_1, local_range);
 
-    // command_queue.enqueueReadBuffer(array, CL_TRUE, 0, array_size * sizeof(int), &(*begin));
-
-
-
-    // std::cout << "kernel_local_max_slm array:\n";
-    // for (auto to = begin; to != end; to++) {
-    //     std::cout << *(to) << " ";
-    // }
-    // std::cout << "\n";
     
     cl::NDRange global_range_2(array_size / 2);
     cl_uint elems_per_workgroup = max_workgroup_size * 2;
@@ -95,9 +76,9 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
         }
 
         kernel_local_step.setArg(0, array);
-        kernel_local_step.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+        kernel_local_step.setArg(1, cl::Local(elems_per_workgroup * 2 * sizeof(int)));
         kernel_local_step.setArg(2, block_size);
-        kernel_local_step.setArg(3, max_workgroup_size);
+        kernel_local_step.setArg(3, static_cast<uint>(max_workgroup_size));
         kernel_local_step.setArg(4, dir);
 
         command_queue.enqueueNDRangeKernel(kernel_local_step, cl::NullRange, global_range_2,
@@ -106,11 +87,6 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
 
     command_queue.enqueueReadBuffer(array, CL_TRUE, 0, array_size * sizeof(int), &(*begin));
     
-    // std::cout << "final array:\n";
-    // for (auto to = begin; to != end; to++) {
-    //     std::cout << *(to) << " ";
-    // }
-    // exit(0);
 }
 
 } // namespace Bitonic
