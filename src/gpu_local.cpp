@@ -77,6 +77,8 @@ void gpu_local_sort_naive(std::vector<int>::iterator begin, std::vector<int>::it
     command_queue.enqueueReadBuffer(array, CL_TRUE, 0, array_size * sizeof(int), &(*begin));
 }
 
+/* --------------------------------------------------------------------------------------------- */
+
 void gpu_local_sort_better(std::vector<int>::iterator begin, std::vector<int>::iterator end,
                            Direction direction)
 {
@@ -99,7 +101,6 @@ void gpu_local_sort_better(std::vector<int>::iterator begin, std::vector<int>::i
     cl::CommandQueue command_queue(context);
 
     cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
-    cl_ulong local_mem_size = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>();
 
 
     std::size_t array_size = std::distance(begin, end);
@@ -113,24 +114,24 @@ void gpu_local_sort_better(std::vector<int>::iterator begin, std::vector<int>::i
     cl::NDRange global_range(array_size / 2);
     cl::NDRange local_range(max_workgroup_size);
 
-    cl_uint elems_per_worgroup = max_workgroup_size * 2;
+    cl_uint elems_per_workgroup = max_workgroup_size * 2;
 
 
     kernel_local.setArg(0, array);
-    kernel_local.setArg(1, cl::Local(elems_per_worgroup * sizeof(int)));
+    kernel_local.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
     kernel_local.setArg(2, dir);
 
     command_queue.enqueueNDRangeKernel(kernel_local, cl::NullRange, global_range, local_range);
 
 
-    for (cl_uint block_size = elems_per_worgroup * 2; block_size <= array_size; block_size *= 2)
+    for (cl_uint block_size = elems_per_workgroup * 2; block_size <= array_size; block_size *= 2)
     {
         for (cl_uint dist = block_size / 2; dist > 0; dist /= 2)
         {
             if (dist <= max_workgroup_size)
             {
                 kernel_local_step.setArg(0, array);
-                kernel_local_step.setArg(1, cl::Local(elems_per_worgroup * sizeof(int)));
+                kernel_local_step.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
                 kernel_local_step.setArg(2, block_size);
                 kernel_local_step.setArg(3, dist);
                 kernel_local_step.setArg(4, dir);
@@ -155,8 +156,10 @@ void gpu_local_sort_better(std::vector<int>::iterator begin, std::vector<int>::i
     command_queue.enqueueReadBuffer(array, CL_TRUE, 0, array_size * sizeof(int), &(*begin));
 }
 
+/* --------------------------------------------------------------------------------------------- */
+
 void gpu_local_sort_best(std::vector<int>::iterator begin, std::vector<int>::iterator end,
-                           Direction direction)
+                         Direction direction)
 {
     static bool is_platform_initialized = false;
     if (!is_platform_initialized) { details::init_platform(); }
@@ -177,7 +180,6 @@ void gpu_local_sort_best(std::vector<int>::iterator begin, std::vector<int>::ite
     cl::CommandQueue command_queue(context);
 
     cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
-    cl_ulong local_mem_size = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>();
 
 
     std::size_t array_size = std::distance(begin, end);
@@ -191,44 +193,37 @@ void gpu_local_sort_best(std::vector<int>::iterator begin, std::vector<int>::ite
     cl::NDRange global_range(array_size / 2);
     cl::NDRange local_range(max_workgroup_size);
 
-    cl_uint elems_per_worgroup = max_workgroup_size * 2;
+    cl_uint elems_per_workgroup = max_workgroup_size * 2;
 
 
     kernel_local.setArg(0, array);
-    kernel_local.setArg(1, cl::Local(elems_per_worgroup * sizeof(int)));
+    kernel_local.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
     kernel_local.setArg(2, dir);
 
     command_queue.enqueueNDRangeKernel(kernel_local, cl::NullRange, global_range, local_range);
 
 
-    for (cl_uint block_size = elems_per_worgroup * 2; block_size <= array_size; block_size *= 2)
+    for (cl_uint block_size = elems_per_workgroup * 2; block_size <= array_size; block_size *= 2)
     {
-        for (cl_uint dist = block_size / 2; dist > 0; dist /= 2)
+        for (cl_uint dist = block_size / 2; dist > max_workgroup_size; dist /= 2)
         {
-            if (dist <= max_workgroup_size)
-            {
-                kernel_local_step.setArg(0, array);
-                kernel_local_step.setArg(1, cl::Local(elems_per_worgroup * sizeof(int)));
-                kernel_local_step.setArg(2, block_size);
-                kernel_local_step.setArg(3, dir);
+            kernel_global.setArg(0, array);
+            kernel_global.setArg(1, block_size);
+            kernel_global.setArg(2, dist);
+            kernel_global.setArg(3, dir);
 
-                command_queue.enqueueNDRangeKernel(kernel_local_step, cl::NullRange, global_range,
-                                                   local_range);
-
-                break;
-            }
-
-            else
-            {
-                kernel_global.setArg(0, array);
-                kernel_global.setArg(1, block_size);
-                kernel_global.setArg(2, dist);
-                kernel_global.setArg(3, dir);
-
-                command_queue.enqueueNDRangeKernel(kernel_global, cl::NullRange, global_range,
-                                                   local_range);
-            }
+            command_queue.enqueueNDRangeKernel(kernel_global, cl::NullRange, global_range,
+                                               local_range);
         }
+
+        kernel_local_step.setArg(0, array);
+        kernel_local_step.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+        kernel_local_step.setArg(2, block_size);
+        kernel_local_step.setArg(3, max_workgroup_size);
+        kernel_local_step.setArg(4, dir);
+
+        command_queue.enqueueNDRangeKernel(kernel_local_step, cl::NullRange, global_range,
+                                           local_range);
     }
 
     command_queue.enqueueReadBuffer(array, CL_TRUE, 0, array_size * sizeof(int), &(*begin));

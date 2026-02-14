@@ -6,19 +6,26 @@
 - [Реализация на CPU](#реализация-на-cpu)
 - [Наивная релизация на GPU](#наивная-реализация-на-gpu)
 - [Реализация с использованием локальной памяти на GPU](#реализация-с-использованием-локальной-памяти-на-gpu)
+- ["Продвинутый" алгоритм на GPU](#продвинутый-алгоритм-на-gpu)
+- [Сравнение с std::sort](#сравнение-с-stdsort)
+- [Выводы](#выводы)
 
 ## Введение
 
 ### Характеристики тестирующего оборудования
 
 OS: Fedora Linux 43 (Workstation Edition) x86_64
+
 CPU: 13th Gen Intel(R) Core(TM) i5-13500H (16) @ 4.70 GHz
-GPU: Intel Iris Xe Graphics @ 1.45 GHz [Integrated]
+
+GPU: Intel Iris Xe Graphics @ 1.45 GHz [Integrated] (Local Memory: 64kb, Max workgroup size: 512)
+
 Memory: 15.24 GiB
 
 ### Использованные утилиты
 
 Профилировщик [Perf](https://perfwiki.github.io/main/)
+
 Профилировщик [Intel Vtune Profiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/vtune-profiler-download.html)
 
 ### Об алгоритме
@@ -343,7 +350,7 @@ void cpu_sort_iterative_3(std::vector<int>::iterator begin, std::vector<int>::it
 |----------------------|----------------------------------------|--------------------|
 | cpu_sort_iterative_0 | 3                                      | Нет                |
 | cpu_sort_iterative_2 | 1                                      | Да                 |
-| cpu_sort_iterative_3 | 0                                      | Нет                |
+| cpu_sort_iterative_3 | 1                                      | Нет                |
 
 Кернела на OpenCL и хостовый код практически ничем не будут отличаться от итеративных функий, но для полноты приведу код трёх получившихся кернелов, которые заменяют внутренний цикл по ```pos```.
 
@@ -421,3 +428,366 @@ __kernel void bitonic_step_best(__global int* array, const uint block_size,
 Таким образом, мы переходим к следующему этапу: чтобы сократить время ожидания данных, используем в нашем алгоритме локальную память видеокарты.
 
 ## Реализация с использованием локальной памяти на GPU
+
+Давайте напишем самый наивный вариант функции и будем постепенно его оптимизировать. 
+
+Начнем с такой реализации: давайте, если на этапе битонической сортировки расстояние между сравниваемыми элементами (`dist`) становится достаточно малым (а конкретно меньше или равно размеру ворк группы), будем использовать локальную память. То есть, если максимальный размер ворк группы равен $512$, то в локальную память мы загрузим $512 * 2$ элемента, так как каждый ворк айтем обрабатывает элементы с индексами `pos` и `partner`. 
+
+Если `dist` больше, то будем использовать глобальную память.
+
+```cpp
+void gpu_local_sort_naive(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                          Direction direction)
+{
+    // ...
+
+    cl::Kernel kernel_global(bitonic_sort_program, "bitonic_step_global");
+    cl::Kernel kernel_local(bitonic_sort_program, "bitonic_step_local");
+
+    cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+
+    cl::NDRange global_range(array_size / 2);
+    cl::NDRange local_range(max_workgroup_size);
+
+    for (cl_uint block_size = 2; block_size <= array_size; block_size *= 2)
+    {
+        for (cl_uint dist = block_size / 2; dist > 0; dist /= 2)
+        {
+            if (dist <= max_workgroup_size)
+            {
+                kernel_local.setArg(0, array);
+                kernel_local.setArg(1, cl::Local(max_workgroup_size * 2 * sizeof(int)));
+                kernel_local.setArg(2, block_size);
+                kernel_local.setArg(3, dist);
+                kernel_local.setArg(4, dir);
+
+                command_queue.enqueueNDRangeKernel(kernel_local, cl::NullRange, global_range,
+                                                   local_range);
+            }
+
+            else
+            {
+                kernel_global.setArg(0, array);
+                kernel_global.setArg(1, block_size);
+                kernel_global.setArg(2, dist);
+                kernel_global.setArg(3, dir);
+
+                command_queue.enqueueNDRangeKernel(kernel_global, cl::NullRange, global_range,
+                                                   local_range);
+            }
+        }
+    }
+
+    // ...
+}
+```
+
+Тут ```bitonic_step_global``` - это кернел из предыдущего пункта, а ```bitonic_step_local``` представлен ниже.
+
+```cpp
+__kernel void bitonic_step_local(__global int* g_data, __local int* l_data, const uint block_size,
+                                 const uint dist, int direction)
+{
+    uint group_size = get_local_size(0);
+    uint global_offset = get_group_id(0) * (group_size * 2);
+
+    uint lid = get_local_id(0);
+
+    l_data[lid] = g_data[global_offset + lid];
+    l_data[lid + group_size] = g_data[global_offset + lid + group_size];
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+
+    uint pos = get_local_id(0);
+
+    uint block_index = pos / dist;
+    pos += block_index * dist;
+
+    uint partner = pos ^ dist;
+
+    uint global_pos = pos + global_offset;
+
+    int use_reversed_direction = (global_pos & block_size) != 0;
+    int local_direction = direction ^ use_reversed_direction;
+
+    COMP_AND_SWAP(l_data[pos], l_data[partner], local_direction);
+
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    g_data[global_offset + lid] = l_data[lid];
+    g_data[global_offset + lid + group_size] = l_data[lid + group_size];
+}
+```
+
+То есть этот кернел ничем не отличается от ```bitonic_step_global```, кроме как того, что мы дополнительно загружаем данные в локальную память (обратите внимание, что доступ к памяти coalesced).
+
+Сравним производительность с предыдущей реализацией без локальной памяти:
+
+![Наивная локальная память](img/gpu_sort/gpu_compare_0.png)
+
+Добавили локальную память и упала скорость =(
+
+Давайте проанализируем профиль:
+
+![Наивная локальная память профиль](img/gpu_sort/local_naive_prof.png)
+
+На первый взгляд ничего не понятно, но если приглядеться, то мы видим ~9 МЛРД БАРЬЕРОВ. Видимо затраты на синхронизацию оказались настолько высокими, что даже локальная память нам никак не помогла (и даже ухудшила положение дел).
+
+Подумав как можно исправить это недоразумение мы приходим к выводу, что можно попробовать некоторые кернела обьединить в один. И действительно, если `block_size < workgroup_size * 2`, то есть block_size помещается в локальную память, тогда можно сделать так:
+
+```cpp
+__kernel void bitonic_local(__global int* g_data, __local int* l_data, int direction)
+{
+    int group_size = get_local_size(0);
+    int global_offset = get_group_id(0) * (group_size * 2);
+
+    int lid = get_local_id(0);
+
+    l_data[lid] = g_data[global_offset + lid];
+    l_data[lid + group_size] = g_data[global_offset + lid + group_size];
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    int limit = group_size * 2;
+
+    for (int block_size = 2; block_size <= limit; block_size *= 2)
+    {
+        for (int dist = block_size / 2; dist > 0; dist /= 2)
+        {
+            uint pos = lid;
+
+            uint block_index = pos / dist;
+            pos += block_index * dist;
+
+            uint partner = pos ^ dist;
+
+            uint global_pos = pos + global_offset;
+
+            uint use_reversed_direction = (global_pos & block_size) != 0;
+            int local_direction = direction ^ use_reversed_direction;
+
+            COMP_AND_SWAP(l_data[pos], l_data[partner], local_direction);
+
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+    }
+
+    g_data[global_offset + lid] = l_data[lid];
+    g_data[global_offset + lid + group_size] = l_data[lid + group_size];
+}
+```
+
+Использовать этот кернел будем так:
+
+```cpp
+
+void gpu_local_sort_better(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                           Direction direction)
+{
+    // ...
+
+    cl::Kernel kernel_global(bitonic_sort_program, "bitonic_step_global");
+    cl::Kernel kernel_local(bitonic_sort_program, "bitonic_local");
+    cl::Kernel kernel_local_step(bitonic_sort_program, "bitonic_step_local");
+
+    cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+
+    cl::NDRange global_range(array_size / 2);
+    cl::NDRange local_range(max_workgroup_size);
+
+    cl_uint elems_per_workgroup = max_workgroup_size * 2;
+
+
+    kernel_local.setArg(0, array);
+    kernel_local.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+    kernel_local.setArg(2, dir);
+
+    command_queue.enqueueNDRangeKernel(kernel_local, cl::NullRange, global_range, local_range);
+
+
+    for (cl_uint block_size = elems_per_workgroup * 2; block_size <= array_size; block_size *= 2)
+    {
+        for (cl_uint dist = block_size / 2; dist > 0; dist /= 2)
+        {
+            if (dist <= max_workgroup_size)
+            {
+                kernel_local_step.setArg(0, array);
+                kernel_local_step.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+                kernel_local_step.setArg(2, block_size);
+                kernel_local_step.setArg(3, dist);
+                kernel_local_step.setArg(4, dir);
+
+                command_queue.enqueueNDRangeKernel(kernel_local_step, cl::NullRange, global_range,
+                                                   local_range);
+            }
+
+            else
+            {
+                kernel_global.setArg(0, array);
+                kernel_global.setArg(1, block_size);
+                kernel_global.setArg(2, dist);
+                kernel_global.setArg(3, dir);
+
+                command_queue.enqueueNDRangeKernel(kernel_global, cl::NullRange, global_range,
+                                                   local_range);
+            }
+        }
+    }
+
+    // ...
+}
+
+```
+
+Снова сравним время с предыдущими результатами:
+
+![Локальная память получше](img/gpu_sort/gpu_compare_1.png)
+
+И профиль:
+
+![Локальная память получше профиль](img/gpu_sort/local_better_prof.png)
+
+И время немного улучшилось, и на один миллиард барьеров стало меньше, ура!
+
+Но может быть можно еще какие-нибудь кернела слить в один? И действительно можно.
+
+Как только `dist` становится не больше, чем `workgroup_size`, дальше он будет только уменьшаться, а значит мы и подавно сможем отсортировать это в локальной памяти. Так давайте все итерации `dist` от `workgroup_size` до $0$ сольем в один кернел.
+
+Получим следующее: 
+
+```cpp
+
+void gpu_local_sort_best(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                         Direction direction)
+{
+    // ...
+
+    cl::Kernel kernel_global(bitonic_sort_program, "bitonic_step_global");
+    cl::Kernel kernel_local(bitonic_sort_program, "bitonic_local");
+    cl::Kernel kernel_local_step(bitonic_sort_program, "bitonic_big_step_local");
+
+    cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+
+    cl::NDRange global_range(array_size / 2);
+    cl::NDRange local_range(max_workgroup_size);
+
+    cl_uint elems_per_workgroup = max_workgroup_size * 2;
+
+
+    kernel_local.setArg(0, array);
+    kernel_local.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+    kernel_local.setArg(2, dir);
+
+    command_queue.enqueueNDRangeKernel(kernel_local, cl::NullRange, global_range, local_range);
+
+
+    for (cl_uint block_size = elems_per_workgroup * 2; block_size <= array_size; block_size *= 2)
+    {
+        for (cl_uint dist = block_size / 2; dist > max_workgroup_size; dist /= 2)
+        {
+            kernel_global.setArg(0, array);
+            kernel_global.setArg(1, block_size);
+            kernel_global.setArg(2, dist);
+            kernel_global.setArg(3, dir);
+
+            command_queue.enqueueNDRangeKernel(kernel_global, cl::NullRange, global_range,
+                                               local_range);
+        }
+
+        kernel_local_step.setArg(0, array);
+        kernel_local_step.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+        kernel_local_step.setArg(2, block_size);
+        kernel_local_step.setArg(3, max_workgroup_size);
+        kernel_local_step.setArg(4, dir);
+
+        command_queue.enqueueNDRangeKernel(kernel_local_step, cl::NullRange, global_range,
+                                           local_range);
+    }
+
+    // ...
+}
+
+```
+
+И новый кернел `bitonic_big_step_local` выглядит так:
+
+```cpp
+
+__kernel void bitonic_big_step_local(__global int* g_data, __local int* l_data,
+                                     const uint block_size, const uint current_dist, int direction)
+{
+    int group_size = get_local_size(0);
+    int global_offset = get_group_id(0) * (group_size * 2);
+
+    int lid = get_local_id(0);
+
+    l_data[lid] = g_data[global_offset + lid];
+    l_data[lid + group_size] = g_data[global_offset + lid + group_size];
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+
+    for (int dist = current_dist; dist > 0; dist /= 2)
+    {
+        uint pos = lid;
+
+        uint block_index = pos / dist;
+        pos += block_index * dist;
+
+        uint partner = pos ^ dist;
+
+        uint global_pos = pos + global_offset;
+
+        uint use_reversed_direction = (global_pos & block_size) != 0;
+        int local_direction = direction ^ use_reversed_direction;
+
+        COMP_AND_SWAP(l_data[pos], l_data[partner], local_direction);
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+
+    g_data[global_offset + lid] = l_data[lid];
+    g_data[global_offset + lid + group_size] = l_data[lid + group_size];
+}
+
+```
+
+МЫ ПОБЕДИЛИ!!!! Эта оптимизация дала прирост в ~2.5 раза, что является огромным успехом!
+
+![Локальная память лучшая](img/gpu_sort/gpu_compare_2.png)
+
+И профиль:
+
+![Локальная память получше профиль](img/gpu_sort/local_best_prof.png)
+
+Отличные показатели по пропускной способности памяти, маленький stall на кернелах, использующих локальную память и крайне высокий occupancy.
+
+## Сравнение с std::sort
+
+Напоследок, давайте порадуемся за наш алгоритм =)
+
+![Сравнение с std::sort](img/gpu_sort/std_compare.png)
+
+
+## "Продвинутый" алгоритм на GPU
+
+Данный раздел посвящен тому, что в предыдущих рассуждениях мы использовали локальную память далеко не на весь свой максимум. На тестирующем компьютере, например, размер локальной памяти составляет 64кб, а мы использовали лишь $512 * 2 * sizeof(int) = 4096$ байт. 
+
+Можно придумать алгоритм, в котором каждый work item будет заниматься сразу несколькими элементами (например, 4, 8, ..., 32). 
+
+Даст ли это прирост по времени? Мы пока что не знаем, так как алгоритм получается очень громоздким, нечитаемым и его довольно сложно дебажить. Так что to be continued...
+
+P.S. подробнее про "продвинутый" алгоритм читайте в книжке "OpenCL in action"
+
+## Выводы
+
+1) Не оптимизируйте что-либо, если не уверены, что в этом вообще есть смысл. Например, в первой половине нашей работы мы оптимизировали вычисления для алгоритма на CPU, думая, что это поможет и в алгоритме на GPU. Здесь нужно строго разделять compute bound и memory bound алгоритмы. Наш алгоритм оказался memory bound, так что никакие оптимизации вычислений нам не помогли.
+
+2) Профилируйте ВСЕГДА. Данные профилировщика очень хорошо задают правильный вектор для размышлений.
+
+3) Выполняйте оптимизации постепенно. По секрету, мы наступили на эти грабли, потому что первым делом реализовали алгоритм из книжки, упомянутой выше, и вообще не понимали почему там все устроенно именно так, как устроено. Впоследствие, выполняя оптимизации по шагам, мы сами догадались до такой реализации и очень хорошо разобрались откуда вообще взялся такой странный алгоритм.
+
+Спасибо всем, кто дочитал это очень длинное readme до конца! Вы молодцы, удачи)
