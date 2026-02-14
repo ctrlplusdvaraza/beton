@@ -45,5 +45,5 @@ endfunction()
 
 add_cl_kernel_compilation("naive.cl"    "kNaiveClSrc"    "naive_kernel")
 add_cl_kernel_compilation("local.cl"    "kLocalClSrc"    "local_kernel")
-add_cl_kernel_compilation("advanced.cl" "kAdvancedClSrc" "advanced_kernel")
-add_cl_kernel_compilation("bitonic.cl"  "kBitonicClSrc"  "bitonic_kernel")
+# add_cl_kernel_compilation("advanced.cl" "kAdvancedClSrc" "advanced_kernel")
+# add_cl_kernel_compilation("bitonic.cl"  "kBitonicClSrc"  "bitonic_kernel")

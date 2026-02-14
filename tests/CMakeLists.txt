@@ -6,8 +6,8 @@ set(SOURCE_FILES
     ${CMAKE_SOURCE_DIR}/src/cpu_sort.cpp
     ${CMAKE_SOURCE_DIR}/src/gpu_naive.cpp
     ${CMAKE_SOURCE_DIR}/src/gpu_local.cpp
-    ${CMAKE_SOURCE_DIR}/src/gpu_advanced.cpp
-    ${CMAKE_SOURCE_DIR}/src/gpu_sort.cpp
+    # ${CMAKE_SOURCE_DIR}/src/gpu_advanced.cpp
+    # ${CMAKE_SOURCE_DIR}/src/gpu_sort.cpp
 )
 
 set(TARGET_NAME tests)
