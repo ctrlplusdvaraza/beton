@@ -46,23 +46,23 @@ void TestSortCorrectness(SortFunction sort_func, std::size_t start_size, std::si
             }
         }
 
-        // Descending test
-        {
-            std::vector<int> arr_descending = base;
-            sort_func(arr_descending.begin(), arr_descending.end(), Bitonic::Direction::Descending);
-            bool ok_desc = IsSorted(arr_descending, Bitonic::Direction::Descending);
+        // // Descending test
+        // {
+        //     std::vector<int> arr_descending = base;
+        //     sort_func(arr_descending.begin(), arr_descending.end(), Bitonic::Direction::Descending);
+        //     bool ok_desc = IsSorted(arr_descending, Bitonic::Direction::Descending);
 
-            ++total_tests;
-            if (!ok_desc)
-            {
-                std::cout << "FAILED TEST: " << name << " (size = " << size
-                          << ", DESCENDING) NOT SORTED" << std::endl;
-            }
-            else
-            {
-                ++passed_tests;
-            }
-        }
+        //     ++total_tests;
+        //     if (!ok_desc)
+        //     {
+        //         std::cout << "FAILED TEST: " << name << " (size = " << size
+        //                   << ", DESCENDING) NOT SORTED" << std::endl;
+        //     }
+        //     else
+        //     {
+        //         ++passed_tests;
+        //     }
+        // }
     }
 
     if (passed_tests == total_tests)

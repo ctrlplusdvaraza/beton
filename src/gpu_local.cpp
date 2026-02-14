@@ -219,7 +219,7 @@ void gpu_local_sort_best(std::vector<int>::iterator begin, std::vector<int>::ite
         kernel_local_step.setArg(0, array);
         kernel_local_step.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
         kernel_local_step.setArg(2, block_size);
-        kernel_local_step.setArg(3, max_workgroup_size);
+        kernel_local_step.setArg(3, static_cast<uint>(max_workgroup_size));
         kernel_local_step.setArg(4, dir);
 
         command_queue.enqueueNDRangeKernel(kernel_local_step, cl::NullRange, global_range,

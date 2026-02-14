@@ -12,154 +12,79 @@
 
 #define ELEMS_PER_THREAD 4
 
-static inline void int4_compare_swap(__local int* la, __local int* lb, int dir)
+static inline void int4_compare_swap(int4* a, int4* b, int dir/*asc=0, des=-1*/)
 {
-    for (int i = 0; i < 4; i++) {
-        COMP_AND_SWAP(la[i], lb[i], dir);
-    }
-
-    // int4 a = {la[0], la[1], la[2], la[3]};
-    // int4 b = {lb[0], lb[1], lb[2], lb[3]};
-
-    // // int4 add3 = (int4)(4, 5, 6, 7);
-    // int4 ta = a;
-    // // int4 comp = ((a < b) ^ dir) * 4 + add3;
-    // // a = shuffle2(a, b, as_uint4(comp));
-    // // b = shuffle2(b, ta, as_uint4(comp));
-
-
-    // int4 comp = ((a < b) ^ dir);
-    // int4 minMask = comp * 4;          // 0,0,0,0 or 4,4,4,4
-    // int4 maxMask = (1 - comp) * 4;     // 4,4,4,4 or 0,0,0,0
-    // int4 add3 = (int4)(0, 1, 2, 3);
-
-    // a = shuffle2(a, b, as_uint4(minMask + add3));  // Select smaller values
-    // b = shuffle2(ta, b, as_uint4(maxMask + add3)); // Select larger values
-
-
-
-    // la[0] = a.x;
-    // la[1] = a.y;
-    // la[2] = a.z;
-    // la[3] = a.w;
-
-    // lb[0] = b.x;
-    // lb[1] = b.y;
-    // lb[2] = b.z;
-    // lb[3] = b.w;
+    dir *= -1;
+    int4 add3 = (int4)(4, 5, 6, 7);
+    int4 ta = *a;
+    int4 comp = ((*a < *b) ^ dir) * 4 + add3;
+    *a = shuffle2(*a, *b, as_uint4(comp));
+    *b = shuffle2(*b, ta, as_uint4(comp));
 }
 
-__kernel void bitonic_local_max_slm(__global int* g_data, __local int* l_data, int direction)
+static inline void int4_sort(int4* input, int dir/*asc=0, des=-1*/) 
 {
-    uint group_size = get_local_size(0);
-    uint total_local_size = group_size * ELEMS_PER_THREAD;
-    uint global_offset = get_group_id(0) * total_local_size;
-    uint lid = get_local_id(0);
+    dir *= -1;
+    uint4 mask1 = (uint4)(1, 0, 3, 2);
+    uint4 mask2 = (uint4)(2, 3, 0, 1);
+    uint4 mask3 = (uint4)(3, 2, 1, 0);
 
-    int private_block[ELEMS_PER_THREAD];
+    int4 add1 = (int4)(1, 1, 3, 3);
+    int4 add2 = (int4)(2, 3, 2, 3);
+    int4 add3 = (int4)(1, 2, 2, 3);
 
-    uint base_idx = lid * ELEMS_PER_THREAD;
-    for (uint i = 0; i < ELEMS_PER_THREAD; ++i)
-    {
-        uint global_idx = global_offset + base_idx + i;
-        private_block[i] = g_data[global_idx];
-    }
+    int4 comp;
 
-    // printf("%d : %d %d %d %d\n", lid, private_block[0], private_block[1] , private_block[2], private_block[3]);
+    comp = ((*input < shuffle(*input, mask1)) ^ dir);
+    *input = shuffle(*input, as_uint4(comp + add1));
 
-    for (uint block_size = 2; block_size <= ELEMS_PER_THREAD; block_size *= 2)
-    {
-        for (uint dist = block_size / 2; dist > 0; dist /= 2)
-        {
-            for (uint pos = 0; pos < ELEMS_PER_THREAD / 2; ++pos)
-            {
-                uint block_index = pos / dist;
-                uint correct_pos = pos + block_index * dist;
+    comp = ((*input < shuffle(*input, mask2)) ^ dir);
+    *input = shuffle(*input, as_uint4(comp * 2 + add2));
 
-                uint partner = correct_pos ^ dist;
+    comp = ((*input < shuffle(*input, mask3)) ^ dir);
+    *input = shuffle(*input, as_uint4(comp + add3));
+}
 
+__kernel void bitonic_local_max_slm(__global int4* g_data, __local int4* l_data, int direction)
+{
+    
+    const uint lid = get_local_id(0);
+    const uint gid = get_group_id(0);
+    const uint group_size = get_local_size(0);
+    const uint global_offset = get_group_id(0) * get_local_size(0);
+    uint gid_offset_int4 = gid * group_size;
 
-                // uint global_pos = pos + global_offset;
-                uint global_pos = (lid * ELEMS_PER_THREAD) + correct_pos;
+    int4 private_block = g_data[global_offset + lid];
 
-                // Use the global index for the mask check
-                int use_reversed_direction = (global_pos & block_size) != 0;
-                int local_direction = direction ^ use_reversed_direction;
-
-                // int use_reversed_direction = (correct_pos & block_size) != 0;
-                // int local_direction = direction ^ use_reversed_direction;
-
-                COMP_AND_SWAP(private_block[correct_pos], private_block[partner], local_direction);
-            }
-        }
-    }
-
-    for (uint i = 0; i < ELEMS_PER_THREAD; i++)
-    {
-        l_data[base_idx + i] = private_block[i];
-    }
+    int4_sort(&private_block, lid % 2);
+    l_data[lid] = private_block;
     barrier(CLK_LOCAL_MEM_FENCE);
 
 
-    for (uint block_size = 2; block_size <= group_size; block_size *= 2) 
+    for (uint block_size = 2; block_size <= group_size; block_size *= 2) // block = block_size * int4 
     {
-        // 1. Inter-Thread Phase: Swap whole int4 vectors between threads
-        // Handles strides: block_size/2 ... down to 1 thread
         for (uint dist = block_size / 2; dist > 0; dist /= 2) 
         {
             uint pos = lid;
             uint partner = pos ^ dist;
             
-            if (partner > pos)
-            {
-                uint global_pos = pos * ELEMS_PER_THREAD + global_offset;
-                
-                // FIX 1: Scale block_size to elements for the mask
-                uint mask = block_size * ELEMS_PER_THREAD; 
-                uint use_reversed_direction = (global_pos & mask) != 0;
-                int local_direction = direction ^ use_reversed_direction;
-
-                int4_compare_swap(&l_data[pos * ELEMS_PER_THREAD], &l_data[partner * ELEMS_PER_THREAD], local_direction);
+            if (partner > pos) {
+                uint global_pos_int = (gid_offset_int4 + pos) * ELEMS_PER_THREAD;
+                uint mask = block_size * ELEMS_PER_THREAD;
+                int local_direction = direction ^ ((global_pos_int & mask) != 0);
+                int4_compare_swap(&l_data[pos], &l_data[partner], local_direction);
             }
-            // FIX 2: Mandatory Barrier
             barrier(CLK_LOCAL_MEM_FENCE);
         }
-
-        uint global_pos = lid * ELEMS_PER_THREAD + global_offset;
-        uint mask = block_size * ELEMS_PER_THREAD; 
-        
-        // Calculate direction for THIS thread (applies to all 4 elements)
-        int local_dir = direction ^ ((global_pos & mask) != 0);
-
-        // Load all 4 elements into registers
-        uint base = lid * ELEMS_PER_THREAD;
-        int v0 = l_data[base + 0];
-        int v1 = l_data[base + 1];
-        int v2 = l_data[base + 2];
-        int v3 = l_data[base + 3];
-
-        // Stride 2: Compare (0,2) and (1,3)
-        COMP_AND_SWAP(v0, v2, local_dir);
-        COMP_AND_SWAP(v1, v3, local_dir);
-
-        // Stride 1: Compare (0,1) and (2,3)
-        COMP_AND_SWAP(v0, v1, local_dir);
-        COMP_AND_SWAP(v2, v3, local_dir);
-
-        // Store fully sorted quad back to memory
-        l_data[base + 0] = v0;
-        l_data[base + 1] = v1;
-        l_data[base + 2] = v2;
-        l_data[base + 3] = v3;
-        
+        uint base_global_int = (gid_offset_int4 + lid) * ELEMS_PER_THREAD;
+        uint mask = block_size * ELEMS_PER_THREAD;
+        int local_dir = direction ^ ((base_global_int & mask) != 0);
+        int4_sort(&l_data[lid], (local_dir + 1) % 2);
         barrier(CLK_LOCAL_MEM_FENCE);
     }
-
-    for (uint i = 0; i < ELEMS_PER_THREAD; ++i)
-    {
-        g_data[global_offset + base_idx + i] = l_data[base_idx + i];
-    }
+    g_data[global_offset + lid] = l_data[lid];
 }
+
 
 
 __kernel void bitonic_step_global(__global int* array, const uint block_size, const uint dist,

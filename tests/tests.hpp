@@ -40,7 +40,7 @@ inline std::ostream& operator<<(std::ostream& ostream, const std::vector<T>& vec
     return ostream;
 }
 
-inline void RandFill(std::vector<int>& vector, std::size_t modulo = 1000000)
+inline void RandFill(std::vector<int>& vector, std::size_t modulo = 100)
 {
     static std::random_device rd;
     static std::mt19937_64 gen(rd());

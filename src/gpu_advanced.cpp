@@ -16,7 +16,6 @@ namespace Bitonic
 void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
                        Direction direction)
 {
-
     static bool is_platform_initialized = false;
     if (!is_platform_initialized) { details::init_platform(); }
 
@@ -27,6 +26,13 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
         details::build_kernels(are_kernels_compiled, bitonic_sort_program);
     }
 
+    // std::cout << "start_array: \n";
+    // for (auto to = begin; to != end; to++) {
+    //     std::cout << *(to) << " ";
+    // }
+    // std::cout << "\n";
+
+
     cl::Kernel kernel_local_max_slm(bitonic_sort_program, "bitonic_local_max_slm");
     cl::Kernel kernel_global(bitonic_sort_program, "bitonic_step_global");
     cl::Kernel kernel_local_step(bitonic_sort_program, "bitonic_big_step_local");
@@ -36,6 +42,8 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
     cl::CommandQueue command_queue(context);
 
     cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+    max_workgroup_size = max_workgroup_size;
+
     cl_ulong local_mem_size = device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>();
     cl_uint max_slm_elems = local_mem_size / sizeof(int);
     cl_uint elems_per_thread = max_slm_elems / max_workgroup_size;
@@ -57,6 +65,14 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
     kernel_local_max_slm.setArg(2, dir);
 
     command_queue.enqueueNDRangeKernel(kernel_local_max_slm, cl::NullRange, global_range_1, local_range);
+
+    command_queue.enqueueReadBuffer(array, CL_TRUE, 0, array_size * sizeof(int), &(*begin));
+    // std::cout << "kernel_local_max_slm: \n";
+    // for (auto to = begin; to != end; to++) {
+    //     std::cout << *(to) << " ";
+    // }
+    // std::cout << "\n";
+
 
     
     cl::NDRange global_range_2(array_size / 2);
