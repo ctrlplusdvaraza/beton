@@ -43,5 +43,6 @@ function(add_cl_kernel_compilation FILENAME VAR_NAME TARGET_NAME)
     add_custom_target(${TARGET_NAME} DEPENDS "${KERNEL_OUT}")
 endfunction()
 
-add_cl_kernel_compilation("naive.cl"   "kNaiveClSrc"  "naive_kernel")
+add_cl_kernel_compilation("naive.cl"   "kNaiveClSrc"   "naive_kernel")
+add_cl_kernel_compilation("local.cl"   "kLocalClSrc"   "local_kernel")
 add_cl_kernel_compilation("bitonic.cl" "kBitonicClSrc" "bitonic_kernel")

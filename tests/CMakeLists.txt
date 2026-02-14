@@ -4,8 +4,9 @@ set(SOURCE_FILES
     performance.cpp
 
     ${CMAKE_SOURCE_DIR}/src/cpu_sort.cpp
-    ${CMAKE_SOURCE_DIR}/src/gpu_sort.cpp
     ${CMAKE_SOURCE_DIR}/src/gpu_naive.cpp
+    ${CMAKE_SOURCE_DIR}/src/gpu_local_naive.cpp
+    ${CMAKE_SOURCE_DIR}/src/gpu_sort.cpp
 )
 
 set(TARGET_NAME tests)
@@ -25,5 +26,6 @@ target_compile_definitions(${TARGET_NAME} PRIVATE
     CL_TARGET_OPENCL_VERSION=300
 )
 
-add_dependencies(tests bitonic_kernel)
 add_dependencies(tests naive_kernel)
+add_dependencies(tests local_kernel)
+add_dependencies(tests bitonic_kernel)
