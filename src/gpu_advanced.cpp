@@ -61,7 +61,7 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
     // cl::NDRange global_range_1((array_size / max_slm_elems) * max_slm_elems);
 
     kernel_local_max_slm.setArg(0, array);
-    kernel_local_max_slm.setArg(1, cl::Local(max_workgroup_size / ELEMS_PER_THREAD));
+    kernel_local_max_slm.setArg(1, cl::Local(max_workgroup_size * ELEMS_PER_THREAD * sizeof(int)));
     kernel_local_max_slm.setArg(2, dir);
 
     command_queue.enqueueNDRangeKernel(kernel_local_max_slm, cl::NullRange, global_range_1,
@@ -79,34 +79,29 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
     // std::cout << "\n";
     
     cl::NDRange global_range_2(array_size / 2);
-    cl_uint elems_per_worgroup = max_workgroup_size * 2;
+    cl_uint elems_per_workgroup = max_workgroup_size * 2;
 
     for (cl_uint block_size = max_workgroup_size * ELEMS_PER_THREAD * 2; block_size <= array_size; block_size *= 2)
     {
-        for (cl_uint dist = block_size / 2; dist > 0; dist /= 2)
+        for (cl_uint dist = block_size / 2; dist > max_workgroup_size; dist /= 2)
         {
-            if (dist <= max_workgroup_size)
-            {
-                kernel_local_step.setArg(0, array);
-                kernel_local_step.setArg(1, cl::Local(elems_per_worgroup * sizeof(int)));
-                kernel_local_step.setArg(2, block_size);
-                kernel_local_step.setArg(3, dir);
+            kernel_global.setArg(0, array);
+            kernel_global.setArg(1, block_size);
+            kernel_global.setArg(2, dist);
+            kernel_global.setArg(3, dir);
 
-                command_queue.enqueueNDRangeKernel(kernel_local_step, cl::NullRange, global_range_2,
-                                                   local_range);
-                break;
-            }
-            else
-            {
-                kernel_global.setArg(0, array);
-                kernel_global.setArg(1, block_size);
-                kernel_global.setArg(2, dist);
-                kernel_global.setArg(3, dir);
-
-                command_queue.enqueueNDRangeKernel(kernel_global, cl::NullRange, global_range_2,
-                                                   local_range);
-            }
+            command_queue.enqueueNDRangeKernel(kernel_global, cl::NullRange, global_range_2,
+                                               local_range);
         }
+
+        kernel_local_step.setArg(0, array);
+        kernel_local_step.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+        kernel_local_step.setArg(2, block_size);
+        kernel_local_step.setArg(3, max_workgroup_size);
+        kernel_local_step.setArg(4, dir);
+
+        command_queue.enqueueNDRangeKernel(kernel_local_step, cl::NullRange, global_range_2,
+                                           local_range);
     }
 
     command_queue.enqueueReadBuffer(array, CL_TRUE, 0, array_size * sizeof(int), &(*begin));

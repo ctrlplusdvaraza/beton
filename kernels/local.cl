@@ -62,7 +62,7 @@ __kernel void bitonic_step_local(__global int* g_data, __local int* l_data, cons
 }
 
 __kernel void bitonic_big_step_local(__global int* g_data, __local int* l_data,
-                                     const uint block_size, int direction)
+                                     const uint block_size, const uint current_dist, int direction)
 {
     int group_size = get_local_size(0);
     int global_offset = get_group_id(0) * (group_size * 2);
@@ -74,9 +74,8 @@ __kernel void bitonic_big_step_local(__global int* g_data, __local int* l_data,
 
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    int limit = group_size * 2;
 
-    for (int dist = block_size / 2; dist > 0; dist /= 2)
+    for (int dist = current_dist; dist > 0; dist /= 2)
     {
         uint pos = lid;
 
@@ -94,6 +93,7 @@ __kernel void bitonic_big_step_local(__global int* g_data, __local int* l_data,
 
         barrier(CLK_LOCAL_MEM_FENCE);
     }
+
 
     g_data[global_offset + lid] = l_data[lid];
     g_data[global_offset + lid + group_size] = l_data[lid + group_size];

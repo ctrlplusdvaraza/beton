@@ -12,8 +12,11 @@
 ### Характеристики тестирующего оборудования
 
 OS: Fedora Linux 43 (Workstation Edition) x86_64
+
 CPU: 13th Gen Intel(R) Core(TM) i5-13500H (16) @ 4.70 GHz
-GPU: Intel Iris Xe Graphics @ 1.45 GHz [Integrated]
+
+GPU: Intel Iris Xe Graphics @ 1.45 GHz [Integrated] (Local Memory: 64kb, Max workgroup size: 512)
+
 Memory: 15.24 GiB
 
 ### Использованные утилиты
@@ -421,3 +424,327 @@ __kernel void bitonic_step_best(__global int* array, const uint block_size,
 Таким образом, мы переходим к следующему этапу: чтобы сократить время ожидания данных, используем в нашем алгоритме локальную память видеокарты.
 
 ## Реализация с использованием локальной памяти на GPU
+
+Давайте напишем самый наивный вариант функции и будем постепенно его оптимизировать. 
+
+Начнем с такой реализации: давайте, если на этапе битонической сортировки расстояние между сравниваемыми элементами (`dist`) становится достаточно малым (а конкретно меньше или равно размеру ворк группы), будем использовать локальную память. То есть, если максимальный размер ворк группы равен $512$, то в локальную память мы загрузим $512 * 2$ элемента, так как каждый ворк айтем обрабатывает элементы с индексами `pos` и `partner`. 
+
+Если `dist` больше, то будем использовать глобальную память.
+
+```cpp
+void gpu_local_sort_naive(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                          Direction direction)
+{
+    // ...
+
+    cl::Kernel kernel_global(bitonic_sort_program, "bitonic_step_global");
+    cl::Kernel kernel_local(bitonic_sort_program, "bitonic_step_local");
+
+    cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+
+    cl::NDRange global_range(array_size / 2);
+    cl::NDRange local_range(max_workgroup_size);
+
+    for (cl_uint block_size = 2; block_size <= array_size; block_size *= 2)
+    {
+        for (cl_uint dist = block_size / 2; dist > 0; dist /= 2)
+        {
+            if (dist <= max_workgroup_size)
+            {
+                kernel_local.setArg(0, array);
+                kernel_local.setArg(1, cl::Local(max_workgroup_size * 2 * sizeof(int)));
+                kernel_local.setArg(2, block_size);
+                kernel_local.setArg(3, dist);
+                kernel_local.setArg(4, dir);
+
+                command_queue.enqueueNDRangeKernel(kernel_local, cl::NullRange, global_range,
+                                                   local_range);
+            }
+
+            else
+            {
+                kernel_global.setArg(0, array);
+                kernel_global.setArg(1, block_size);
+                kernel_global.setArg(2, dist);
+                kernel_global.setArg(3, dir);
+
+                command_queue.enqueueNDRangeKernel(kernel_global, cl::NullRange, global_range,
+                                                   local_range);
+            }
+        }
+    }
+
+    // ...
+}
+```
+
+Тут ```bitonic_step_global``` - это кернел из предыдущего пункта, а ```bitonic_step_local``` представлен ниже.
+
+```cpp
+__kernel void bitonic_step_local(__global int* g_data, __local int* l_data, const uint block_size,
+                                 const uint dist, int direction)
+{
+    uint group_size = get_local_size(0);
+    uint global_offset = get_group_id(0) * (group_size * 2);
+
+    uint lid = get_local_id(0);
+
+    l_data[lid] = g_data[global_offset + lid];
+    l_data[lid + group_size] = g_data[global_offset + lid + group_size];
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+
+    uint pos = get_local_id(0);
+
+    uint block_index = pos / dist;
+    pos += block_index * dist;
+
+    uint partner = pos ^ dist;
+
+    uint global_pos = pos + global_offset;
+
+    int use_reversed_direction = (global_pos & block_size) != 0;
+    int local_direction = direction ^ use_reversed_direction;
+
+    COMP_AND_SWAP(l_data[pos], l_data[partner], local_direction);
+
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    g_data[global_offset + lid] = l_data[lid];
+    g_data[global_offset + lid + group_size] = l_data[lid + group_size];
+}
+```
+
+То есть этот кернел ничем не отличается от ```bitonic_step_global```, кроме как того, что мы дополнительно загружаем данные в локальную память (обратите внимание, что доступ к памяти coalesced).
+
+Сравним производительность с предыдущей реализацией без локальной памяти:
+
+![Наивная локальная память](img/gpu_sort/gpu_compare_0.png)
+
+Добавили локальную память и упала скорость =(
+
+Давайте проанализируем профиль:
+
+![Наивная локальная память профиль](img/gpu_sort/local_naive_prof.png)
+
+На первый взгляд ничего не понятно, но если приглядеться, то мы видим ~9 МЛРД БАРЬЕРОВ. Видимо затраты на синхронизацию оказались настолько высокими, что даже локальная память нам никак не помогла, но даже ухудшила положение дел.
+
+Подумав как можно исправить это недоразумение мы приходим к выводу, что можно попробовать некоторые кернела обьединить в один. И действительно, если `block_size < workgroup_size * 2`, то есть block_size помещается в локальную память, тогда можно сделать так:
+
+```cpp
+__kernel void bitonic_local(__global int* g_data, __local int* l_data, int direction)
+{
+    int group_size = get_local_size(0);
+    int global_offset = get_group_id(0) * (group_size * 2);
+
+    int lid = get_local_id(0);
+
+    l_data[lid] = g_data[global_offset + lid];
+    l_data[lid + group_size] = g_data[global_offset + lid + group_size];
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    int limit = group_size * 2;
+
+    for (int block_size = 2; block_size <= limit; block_size *= 2)
+    {
+        for (int dist = block_size / 2; dist > 0; dist /= 2)
+        {
+            uint pos = lid;
+
+            uint block_index = pos / dist;
+            pos += block_index * dist;
+
+            uint partner = pos ^ dist;
+
+            uint global_pos = pos + global_offset;
+
+            uint use_reversed_direction = (global_pos & block_size) != 0;
+            int local_direction = direction ^ use_reversed_direction;
+
+            COMP_AND_SWAP(l_data[pos], l_data[partner], local_direction);
+
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+    }
+
+    g_data[global_offset + lid] = l_data[lid];
+    g_data[global_offset + lid + group_size] = l_data[lid + group_size];
+}
+```
+
+Использовать этот кернел будем так:
+
+```cpp
+
+void gpu_local_sort_better(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                           Direction direction)
+{
+    // ...
+
+    cl::Kernel kernel_global(bitonic_sort_program, "bitonic_step_global");
+    cl::Kernel kernel_local(bitonic_sort_program, "bitonic_local");
+    cl::Kernel kernel_local_step(bitonic_sort_program, "bitonic_step_local");
+
+    cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+
+    cl::NDRange global_range(array_size / 2);
+    cl::NDRange local_range(max_workgroup_size);
+
+    cl_uint elems_per_workgroup = max_workgroup_size * 2;
+
+
+    kernel_local.setArg(0, array);
+    kernel_local.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+    kernel_local.setArg(2, dir);
+
+    command_queue.enqueueNDRangeKernel(kernel_local, cl::NullRange, global_range, local_range);
+
+
+    for (cl_uint block_size = elems_per_workgroup * 2; block_size <= array_size; block_size *= 2)
+    {
+        for (cl_uint dist = block_size / 2; dist > 0; dist /= 2)
+        {
+            if (dist <= max_workgroup_size)
+            {
+                kernel_local_step.setArg(0, array);
+                kernel_local_step.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+                kernel_local_step.setArg(2, block_size);
+                kernel_local_step.setArg(3, dist);
+                kernel_local_step.setArg(4, dir);
+
+                command_queue.enqueueNDRangeKernel(kernel_local_step, cl::NullRange, global_range,
+                                                   local_range);
+            }
+
+            else
+            {
+                kernel_global.setArg(0, array);
+                kernel_global.setArg(1, block_size);
+                kernel_global.setArg(2, dist);
+                kernel_global.setArg(3, dir);
+
+                command_queue.enqueueNDRangeKernel(kernel_global, cl::NullRange, global_range,
+                                                   local_range);
+            }
+        }
+    }
+
+    // ...
+}
+
+```
+
+Снова сравним время с предыдущими реализациями:
+
+![Локальная память получше](img/gpu_sort/gpu_compare_1.png)
+
+И профиль:
+
+![Локальная память получше профиль](img/gpu_sort/local_better_prof.png)
+
+И время немного улучшилось, и на один миллиард барьеров стало меньше, но может быть мы можно еще какие-нибудь кернела слить в один? И действительно можем.
+
+Как только `dist` становится не больше, чем `workgroup_size`, дальше он будет только уменьшаться, а значит мы и подавно сможем отсортировать это в локальной памяти. Так давайте все итерации `dist` от `workgroup_size` до $0$ сольем в один кернел.
+
+Получим следующее: 
+
+```cpp
+
+void gpu_local_sort_best(std::vector<int>::iterator begin, std::vector<int>::iterator end,
+                         Direction direction)
+{
+    // ...
+
+    cl::Kernel kernel_global(bitonic_sort_program, "bitonic_step_global");
+    cl::Kernel kernel_local(bitonic_sort_program, "bitonic_local");
+    cl::Kernel kernel_local_step(bitonic_sort_program, "bitonic_big_step_local");
+
+    cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+
+    cl::NDRange global_range(array_size / 2);
+    cl::NDRange local_range(max_workgroup_size);
+
+    cl_uint elems_per_workgroup = max_workgroup_size * 2;
+
+
+    kernel_local.setArg(0, array);
+    kernel_local.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+    kernel_local.setArg(2, dir);
+
+    command_queue.enqueueNDRangeKernel(kernel_local, cl::NullRange, global_range, local_range);
+
+
+    for (cl_uint block_size = elems_per_workgroup * 2; block_size <= array_size; block_size *= 2)
+    {
+        for (cl_uint dist = block_size / 2; dist > max_workgroup_size; dist /= 2)
+        {
+            kernel_global.setArg(0, array);
+            kernel_global.setArg(1, block_size);
+            kernel_global.setArg(2, dist);
+            kernel_global.setArg(3, dir);
+
+            command_queue.enqueueNDRangeKernel(kernel_global, cl::NullRange, global_range,
+                                               local_range);
+        }
+
+        kernel_local_step.setArg(0, array);
+        kernel_local_step.setArg(1, cl::Local(elems_per_workgroup * sizeof(int)));
+        kernel_local_step.setArg(2, block_size);
+        kernel_local_step.setArg(3, max_workgroup_size);
+        kernel_local_step.setArg(4, dir);
+
+        command_queue.enqueueNDRangeKernel(kernel_local_step, cl::NullRange, global_range,
+                                           local_range);
+    }
+
+    // ...
+}
+
+```
+
+И новый кернел `bitonic_big_step_local` выглядит так:
+
+```cpp
+
+__kernel void bitonic_big_step_local(__global int* g_data, __local int* l_data,
+                                     const uint block_size, const uint current_dist, int direction)
+{
+    int group_size = get_local_size(0);
+    int global_offset = get_group_id(0) * (group_size * 2);
+
+    int lid = get_local_id(0);
+
+    l_data[lid] = g_data[global_offset + lid];
+    l_data[lid + group_size] = g_data[global_offset + lid + group_size];
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+
+    for (int dist = current_dist; dist > 0; dist /= 2)
+    {
+        uint pos = lid;
+
+        uint block_index = pos / dist;
+        pos += block_index * dist;
+
+        uint partner = pos ^ dist;
+
+        uint global_pos = pos + global_offset;
+
+        uint use_reversed_direction = (global_pos & block_size) != 0;
+        int local_direction = direction ^ use_reversed_direction;
+
+        COMP_AND_SWAP(l_data[pos], l_data[partner], local_direction);
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+
+    g_data[global_offset + lid] = l_data[lid];
+    g_data[global_offset + lid + group_size] = l_data[lid + group_size];
+}
+
+```
