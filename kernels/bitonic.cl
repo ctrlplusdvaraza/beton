@@ -89,9 +89,9 @@ __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
     int4_compare_swap(&input1, &input2, dir);
     sort_bitonic_int4(&input1, dir);
     sort_bitonic_int4(&input2, dir);
+
     l_data[id] = input1;
     l_data[id + 1] = input2;
-
 
     /* Create bitonic set */
     for (int size = 2; size < get_local_size(0); size <<= 1)
@@ -113,6 +113,7 @@ __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
     int4_compare_swap(&input1, &input2, dir);
     sort_bitonic_int4(&input1, dir);
     sort_bitonic_int4(&input2, dir);
+    
     g_data[global_start] = input1;
     g_data[global_start + 1] = input2;
 }

@@ -24,14 +24,12 @@ void gpu_naive_sort(std::vector<int>::iterator begin, std::vector<int>::iterator
         details::build_kernels(are_kernels_compiled, bitonic_sort_program);
     }
 
+    cl::Kernel kernel(bitonic_sort_program, "bitonic_step_naive");
 
     cl::Context context = cl::Context::getDefault();
     cl::Device device = cl::Device::getDefault();
     cl::CommandQueue command_queue(context);
-    cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
 
-
-    cl::Kernel kernel(bitonic_sort_program, "bitonic_step_naive");
 
     std::size_t array_size = std::distance(begin, end);
     if (array_size <= 1) { return; }
@@ -52,7 +50,6 @@ void gpu_naive_sort(std::vector<int>::iterator begin, std::vector<int>::iterator
 
             command_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(array_size),
                                                cl::NullRange);
-            command_queue.finish();
         }
     }
 
@@ -72,14 +69,12 @@ void gpu_naive_sort_better(std::vector<int>::iterator begin, std::vector<int>::i
         details::build_kernels(are_kernels_compiled, bitonic_sort_program);
     }
 
+    cl::Kernel kernel(bitonic_sort_program, "bitonic_step_better");
 
     cl::Context context = cl::Context::getDefault();
     cl::Device device = cl::Device::getDefault();
     cl::CommandQueue command_queue(context);
-    cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
 
-
-    cl::Kernel kernel(bitonic_sort_program, "bitonic_step_better");
 
     std::size_t array_size = std::distance(begin, end);
     if (array_size <= 1) { return; }
@@ -100,7 +95,6 @@ void gpu_naive_sort_better(std::vector<int>::iterator begin, std::vector<int>::i
 
             command_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(array_size / 2),
                                                cl::NullRange);
-            command_queue.finish();
         }
     }
 
@@ -120,14 +114,12 @@ void gpu_naive_sort_best(std::vector<int>::iterator begin, std::vector<int>::ite
         details::build_kernels(are_kernels_compiled, bitonic_sort_program);
     }
 
+    cl::Kernel kernel(bitonic_sort_program, "bitonic_step_best");
 
     cl::Context context = cl::Context::getDefault();
     cl::Device device = cl::Device::getDefault();
     cl::CommandQueue command_queue(context);
-    cl::size_type max_workgroup_size = device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
 
-
-    cl::Kernel kernel(bitonic_sort_program, "bitonic_step_best");
 
     std::size_t array_size = std::distance(begin, end);
     if (array_size <= 1) { return; }
@@ -153,7 +145,6 @@ void gpu_naive_sort_best(std::vector<int>::iterator begin, std::vector<int>::ite
 
             command_queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(array_size / 2),
                                                cl::NullRange);
-            command_queue.finish();
         }
     }
 
