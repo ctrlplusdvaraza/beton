@@ -97,8 +97,16 @@ __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
     for (int size = 2; size < get_local_size(0); size <<= 1)
     {
         dir = (get_local_id(0) / size & 1) * -1;
+        for (int stride = size; stride > 1; stride >>= 1)
+        {
+            barrier(CLK_LOCAL_MEM_FENCE);
+            int id = get_local_id(0) + (get_local_id(0) / stride) * stride;
+            int4_compare_swap(&l_data[id], &l_data[id + stride], dir);
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
 
-        bitonic_local_merge(l_data, size, dir);
+
+        // bitonic_local_merge(l_data, size, dir);
         bitonic_local_finalize(l_data, /*id=*/get_local_id(0) * 2, dir);
     }
 

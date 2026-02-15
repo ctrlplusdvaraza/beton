@@ -45,18 +45,16 @@ static inline void int4_sort(int4* input, int dir/*asc=0, des=-1*/)
     *input = shuffle(*input, as_uint4(comp + add3));
 }
 
-__kernel void bitonic_local_max_slm(__global int4* g_data, __local int4* l_data, int direction)
+__kernel void bitonic_local_max_slm(__global int4* g_data, __local int4* l_data, const int direction)
 {
-    
     const uint lid = get_local_id(0);
     const uint gid = get_group_id(0);
     const uint group_size = get_local_size(0);
     const uint global_offset = get_group_id(0) * get_local_size(0);
-    uint gid_offset_int4 = gid * group_size;
 
     int4 private_block = g_data[global_offset + lid];
 
-    int4_sort(&private_block, lid % 2);
+    int4_sort(&private_block, lid & 1);
     l_data[lid] = private_block;
     barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -69,26 +67,22 @@ __kernel void bitonic_local_max_slm(__global int4* g_data, __local int4* l_data,
             uint partner = pos ^ dist;
             
             if (partner > pos) {
-                uint global_pos_int = (gid_offset_int4 + pos) * ELEMS_PER_THREAD;
-                uint mask = block_size * ELEMS_PER_THREAD;
-                int local_direction = direction ^ ((global_pos_int & mask) != 0);
+                uint global_pos_int = (global_offset + pos);
+                // if the element sits in the upper half of the block the direction is inverted
+                int local_direction = direction ^ ((global_pos_int & block_size) != 0); 
                 int4_compare_swap(&l_data[pos], &l_data[partner], local_direction);
             }
             barrier(CLK_LOCAL_MEM_FENCE);
         }
-        uint base_global_int = (gid_offset_int4 + lid) * ELEMS_PER_THREAD;
-        uint mask = block_size * ELEMS_PER_THREAD;
-        int local_dir = direction ^ ((base_global_int & mask) != 0);
-        int4_sort(&l_data[lid], (local_dir + 1) % 2);
+        uint base_global_int = (global_offset + lid);
+        int local_dir = direction ^ ((base_global_int & block_size) == 0);
+        int4_sort(&l_data[lid], local_dir);
         barrier(CLK_LOCAL_MEM_FENCE);
     }
     g_data[global_offset + lid] = l_data[lid];
 }
 
-
-
-__kernel void bitonic_step_global(__global int* array, const uint block_size, const uint dist,
-                                  int direction)
+__kernel void bitonic_step_global(__global int* array, const uint block_size, const uint dist, int direction)
 {
     uint pos = get_global_id(0);
 
