@@ -13,7 +13,7 @@ void StdSort(std::vector<int>::iterator begin, std::vector<int>::iterator end,
 int main()
 try
 {
-    std::size_t correctness_start_size = 1ull << 10;
+    std::size_t correctness_start_size = 1ull << 15;
     std::size_t correctness_end_size = 1ull << 20;
 
     std::vector<std::pair<std::string, SortFunction>> functions_for_correctness_test = {

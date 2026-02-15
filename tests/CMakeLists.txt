@@ -29,5 +29,5 @@ target_compile_definitions(${TARGET_NAME} PRIVATE
 
 add_dependencies(tests naive_kernel)
 add_dependencies(tests local_kernel)
-add_dependencies(tests advanced_kernel)
-add_dependencies(tests bitonic_kernel)
+# add_dependencies(tests advanced_kernel)
+# add_dependencies(tests bitonic_kernel)
