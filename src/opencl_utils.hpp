@@ -62,7 +62,7 @@ inline void build_kernels(bool& are_kernels_compiled, cl::Program& program)
 
     try
     {
-        program.build(kOpenClBuildArgs);
+        program.build(kOpenClBuildArgs.c_str());
         are_kernels_compiled = true;
     }
     catch (...)
