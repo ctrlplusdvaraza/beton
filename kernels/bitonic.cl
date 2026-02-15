@@ -105,7 +105,6 @@ __kernel void bsort_init(__global int4* g_data, __local int4* l_data)
         }
         barrier(CLK_LOCAL_MEM_FENCE);
 
-
         // bitonic_local_merge(l_data, size, dir);
         bitonic_local_finalize(l_data, /*id=*/get_local_id(0) * 2, dir);
     }

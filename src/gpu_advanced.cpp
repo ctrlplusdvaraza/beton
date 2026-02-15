@@ -58,11 +58,10 @@ void gpu_advanced_sort(std::vector<int>::iterator begin, std::vector<int>::itera
     const cl_int dir = (direction == Direction::Ascending) ? 1 : 0;
 
     cl::NDRange local_range(max_workgroup_size);
-    cl::NDRange global_range_1(array_size / ELEMS_PER_THREAD);
+    cl::NDRange global_range_1(array_size / (ELEMS_PER_THREAD * 2));
 
     kernel_local_max_slm.setArg(0, array);
-    kernel_local_max_slm.setArg(1, cl::Local(max_workgroup_size * ELEMS_PER_THREAD * sizeof(int)));
-    kernel_local_max_slm.setArg(2, dir);
+    kernel_local_max_slm.setArg(1, cl::Local(max_workgroup_size * ELEMS_PER_THREAD * 2 * sizeof(int)));
 
     command_queue.enqueueNDRangeKernel(kernel_local_max_slm, cl::NullRange, global_range_1, local_range);
 
