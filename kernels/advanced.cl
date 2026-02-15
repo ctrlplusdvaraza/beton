@@ -140,12 +140,47 @@ __kernel void bitonic_step_global(__global int* array, const uint block_size, co
     COMP_AND_SWAP(array[pos], array[partner], local_direction);
 }
 
-__kernel void bitonic_big_step_local(__global int* g_data, __local int* l_data,
+// __kernel void bitonic_big_step_local(__global int4* g_data, __local int4* l_data,
+//                                      const uint block_size, const uint current_dist, int direction)
+// {
+//     const uint lid = get_local_id(0);
+//     const uint gid = get_group_id(0);
+//     const uint group_size = get_local_size(0);
+//     const uint global_offset = get_group_id(0) * get_local_size(0);
+
+//     l_data[lid] = g_data[global_offset + lid];
+//     barrier(CLK_LOCAL_MEM_FENCE);
+
+//     for (int dist = current_dist; dist > 0; dist /= 2)
+//     {
+//         uint pos = lid;
+//         uint partner = pos ^ dist;
+//         if (partner > pos) {
+//             uint global_pos = global_offset + pos;
+//             uint use_reversed_direction = (global_pos & block_size) != 0;
+//             int local_direction = direction ^ use_reversed_direction;
+//             int int4_dir = (local_direction == 1) ? 0 : -1;
+//             // printf("cs (%d %d)\n", pos, partner);
+//             int4_compare_swap(&l_data[pos], &l_data[partner], int4_dir);
+//             // int4_compare_swap(&l_data[pos], &l_data[partner], local_direction * (-1) /*asc0, desc-1*/);
+//         }
+//         barrier(CLK_LOCAL_MEM_FENCE);
+//     }
+
+//     uint base_global_int = (global_offset + lid);
+//     int local_dir = direction ^ ((base_global_int & block_size) == 0);
+//     int final_sort_dir = (direction == 1) ? 0 : -1;
+//     int4_sort(&l_data[lid], final_sort_dir);
+//     barrier(CLK_LOCAL_MEM_FENCE);
+//     g_data[global_offset + lid] = l_data[lid];    
+// }
+__kernel void bitonic_big_step_local(__global int4* g_data, __local int4* l_data,
                                      const uint block_size, const uint current_dist, int direction)
 {
-    const int group_size = get_local_size(0);
-    const int global_offset = get_group_id(0) * group_size;
-    const int lid = get_local_id(0);
+    const uint lid = get_local_id(0);
+    const uint gid = get_group_id(0);
+    const uint group_size = get_local_size(0);
+    const uint global_offset = get_group_id(0) * get_local_size(0); // in int4 units
 
     l_data[lid] = g_data[global_offset + lid];
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -155,70 +190,18 @@ __kernel void bitonic_big_step_local(__global int* g_data, __local int* l_data,
         uint pos = lid;
         uint partner = pos ^ dist;
         if (partner > pos) {
-            uint global_pos = pos + global_offset;
-
-            uint use_reversed_direction = (global_pos & block_size) != 0;
+            uint global_int = (global_offset + pos) * ELEMS_PER_THREAD;
+            uint use_reversed_direction = (global_int & block_size) != 0;
             int local_direction = direction ^ use_reversed_direction;
-
-            COMP_AND_SWAP(l_data[pos], l_data[partner], local_direction);
-
+            int int4_dir = (local_direction == 1) ? 0 : -1;
+            int4_compare_swap(&l_data[pos], &l_data[partner], int4_dir);
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    g_data[global_offset + lid] = l_data[lid];
+    uint base_global_int = (global_offset + lid) * ELEMS_PER_THREAD;
+    int final_sort_dir = (direction == 1) ? 0 : -1; // overall direction
+    int4_sort(&l_data[lid], final_sort_dir);
+    barrier(CLK_LOCAL_MEM_FENCE);
+    g_data[global_offset + lid] = l_data[lid];    
 }
-
-
-// __kernel void bitonic_big_step_local_int4(__global int4* g_data,
-//                                           __local int4* l_data,
-//                                           const uint block_size,       // in ints
-//                                           const uint current_dist,     // in ints
-//                                           int direction)
-// {
-//     const uint lid = get_local_id(0);
-//     const uint group_size = get_local_size(0);          // number of int4 slots per half-chunk
-//     const uint global_offset = get_group_id(0) * (group_size * 2u); // offset in int4 units
-
-//     // load two int4s per thread into local memory (cover 2*group_size int4 slots)
-//     int4 v0 = g_data[global_offset + lid];
-//     int4 v1 = g_data[global_offset + lid + group_size];
-//     l_data[lid] = v0;
-//     l_data[lid + group_size] = v1;
-
-//     barrier(CLK_LOCAL_MEM_FENCE);
-
-//     // convert sizes from ints -> int4 units
-//     const uint block_size4 = block_size / ELEMS_PER_THREAD;     // must be integer
-//     uint dist4 = current_dist / ELEMS_PER_THREAD;               // loop variable in int4 units
-
-//     for (; dist4 > 0; dist4 >>= 1)
-//     {
-//         // pos computation same pattern as original but in int4 indices
-//         uint pos = lid;
-//         uint block_index = pos / dist4;
-//         pos += block_index * dist4;
-
-//         uint partner = pos ^ dist4;
-
-//         // do compare-swap only once per pair
-//         if (partner > pos)
-//         {
-//             // compute element-granular index (in ints) for direction decision
-//             uint global_pos_int = (global_offset + pos) * ELEMS_PER_THREAD;
-//             // block_size is in ints => use it directly as mask
-//             uint use_reversed_direction = (global_pos_int & block_size) != 0u;
-//             int local_direction = direction ^ (int)use_reversed_direction;
-
-//             // use int4 compare-swap (replace COMP_AND_SWAP for int4 lanes)
-//             int4_compare_swap(&l_data[pos], &l_data[partner], local_direction);
-//         }
-
-//         barrier(CLK_LOCAL_MEM_FENCE);
-//     }
-
-//     // write back both int4 slots
-//     g_data[global_offset + lid] = l_data[lid];
-//     g_data[global_offset + lid + group_size] = l_data[lid + group_size];
-// }
-
